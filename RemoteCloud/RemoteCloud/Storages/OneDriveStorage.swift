@@ -321,7 +321,7 @@ public class OneDriveStorage: NetworkStorage, URLSessionDataDelegate {
                 request.httpMethod = "GET"
                 request.setValue("Bearer \(await accessToken())", forHTTPHeaderField: "Authorization")
                 
-                guard let (data, _) = try? await URLSession.shared.data(for: request) else {
+                guard let (data, _) = try? await URLSession.shared.thumbnailData(for: request) else {
                     throw RetryError.Retry
                 }
                 let object = try JSONSerialization.jsonObject(with: data, options: [])
@@ -349,7 +349,7 @@ public class OneDriveStorage: NetworkStorage, URLSessionDataDelegate {
                     request2.setValue("bytes=\(s)-\(s+length!-1)", forHTTPHeaderField: "Range")
                 }
 
-                guard let (data2, _) = try? await URLSession.shared.data(for: request2) else {
+                guard let (data2, _) = try? await URLSession.shared.thumbnailData(for: request2) else {
                     throw RetryError.Retry
                 }
                 if let length, data2.count != length {

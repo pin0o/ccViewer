@@ -345,7 +345,7 @@ public class DropBoxStorage: NetworkStorage, URLSessionDataDelegate {
                 else {
                     request.setValue("bytes=\(s)-\(s+length!-1)", forHTTPHeaderField: "Range")
                 }
-                guard let (data, _) = try? await URLSession.shared.data(for: request) else {
+                guard let (data, _) = try? await URLSession.shared.thumbnailData(for: request) else {
                     throw RetryError.Retry
                 }
                 if let length, data.count != length {

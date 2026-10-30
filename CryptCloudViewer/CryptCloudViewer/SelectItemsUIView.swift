@@ -137,35 +137,41 @@ struct SelectItemsUIView: View {
             }
             else {
                 List {
-                    ForEach(searchedItems, id: \.self) { item in
+                    ForEach(searchedItems, id: \.thumbnailRowID) { item in
                         if item.folder {
                             NavigationLink(value: HomePath.select(storage: storage, fileid: item.id ?? "")) {
-                                VStack(alignment: .leading) {
-                                    Text(verbatim: item.name ?? "")
-                                        .font(.headline)
-                                    if let mdate = item.mdate {
-                                        Text(verbatim: "\(f.string(from: mdate))\tfolder")
-                                            .font(.footnote)
-                                    }
-                                    else {
-                                        Text(verbatim: "\tfolder")
-                                            .font(.footnote)
+                                HStack {
+                                    FileThumbnailView(item: item)
+                                    VStack(alignment: .leading) {
+                                        Text(verbatim: item.name ?? "")
+                                            .font(.headline)
+                                        if let mdate = item.mdate {
+                                            Text(verbatim: "\(f.string(from: mdate))\tfolder")
+                                                .font(.footnote)
+                                        }
+                                        else {
+                                            Text(verbatim: "\tfolder")
+                                                .font(.footnote)
+                                        }
                                     }
                                 }
                             }
                             .listRowBackground(Color("FolderColor"))
                         }
                         else {
-                            VStack(alignment: .leading) {
-                                Text(verbatim: item.name ?? "")
-                                    .font(.headline)
-                                if let mdate = item.mdate {
-                                    Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                        .font(.footnote)
-                                }
-                                else {
-                                    Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                        .font(.footnote)
+                            HStack {
+                                FileThumbnailView(item: item)
+                                VStack(alignment: .leading) {
+                                    Text(verbatim: item.name ?? "")
+                                        .font(.headline)
+                                    if let mdate = item.mdate {
+                                        Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                            .font(.footnote)
+                                    }
+                                    else {
+                                        Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                            .font(.footnote)
+                                    }
                                 }
                             }
                         }
@@ -175,6 +181,7 @@ struct SelectItemsUIView: View {
                 .background(Color("RootSelectColor"))
                 .searchable(text: $searchText)
                 .refreshable {
+                    ThumbnailService.shared.invalidate(storage: storage)
                     await reload()
                 }
                 .task {

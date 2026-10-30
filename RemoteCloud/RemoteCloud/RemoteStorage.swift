@@ -183,19 +183,27 @@ public class RemoteItem {
     }
     
     public func delete() async -> Bool {
-        await service.delete(fileId: id)
+        defer { NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": storage]) }
+        NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": storage])
+        return await service.delete(fileId: id)
     }
     
     public func rename(newname: String) async -> String? {
-        await service.rename(fileId: id, newname: newname)
+        defer { NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": storage]) }
+        NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": storage])
+        return await service.rename(fileId: id, newname: newname)
     }
     
     public func changetime(newdate: Date) async -> String? {
-        await service.chagetime(fileId: id, newdate: newdate)
+        defer { NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": storage]) }
+        NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": storage])
+        return await service.chagetime(fileId: id, newdate: newdate)
     }
     
     public func move(toParentId: String) async -> String? {
-        await service.move(fileId: id, fromParent: parent, toParent: toParentId)
+        defer { NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": storage]) }
+        NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": storage])
+        return await service.move(fileId: id, fromParent: parent, toParent: toParentId)
     }
     
     public func read(start: Int64? = nil, length: Int64? = nil) async throws -> Data? {
@@ -482,6 +490,7 @@ public class CloudFactory {
     }
     
     public func newStorage(service: CloudStorages, tagname: String) async -> RemoteStorage? {
+        defer { NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": tagname]) }
         if let p = await storageList.get()[tagname] {
             return p
         }
@@ -498,6 +507,8 @@ public class CloudFactory {
     }
     
     public func delStorage(tagname: String) async {
+        defer { NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": tagname]) }
+        NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": tagname])
         await storageList.delete(tagname) { p in
             if let p {
                 await p.logout()
@@ -521,6 +532,7 @@ public class CloudFactory {
     }
     
     public func removeAllAuth() async {
+        NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil)
         if await delAllKeyChain() {
             await storageList.clear()
             await storageList.add("Local", await newStorage(service: .Local, tagname: "Local"))
@@ -669,7 +681,12 @@ public class RemoteStorageBase: NSObject, RemoteStorage {
     public var rootName: String = ""
     
     public func read(fileId: String, start: Int64? = nil, length: Int64? = nil) async throws -> Data? {
-        try await readFile(fileId: fileId, start: start, length: length)
+        try ThumbnailReadScope.current?.check()
+        let data = try await readFile(fileId: fileId, start: start, length: length)
+        if self is LocalStorage || self is FilesStorage || self is SambaStorage {
+            try ThumbnailReadScope.current?.consume(data?.count ?? 0)
+        }
+        return data
     }
     
     public func upload(parentId: String, uploadname: String, target: URL, progress: ((Int64, Int64) async throws -> Void)? = nil) async throws -> String? {

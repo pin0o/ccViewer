@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AA0200000000000000000004 /* thumbnail.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AA0200000000000000000003 /* thumbnail.cpp */; };
+		AA0200000000000000000002 /* FileThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0200000000000000000001 /* FileThumbnailGenerator.swift */; };
 		3C11C0FF2243DDA6006EA640 /* player_base.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C11C0FD2243DDA6006EA640 /* player_base.cpp */; };
 		3C11C1002243DDA6006EA640 /* player_base.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 3C11C0FE2243DDA6006EA640 /* player_base.hpp */; };
 		3C11C10A22442985006EA640 /* player_param.h in Headers */ = {isa = PBXBuildFile; fileRef = 3C11C1052243E8A0006EA640 /* player_param.h */; };
@@ -31,6 +33,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AA0200000000000000000003 /* thumbnail.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = thumbnail.cpp; sourceTree = "<group>"; };
+		AA0200000000000000000001 /* FileThumbnailGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileThumbnailGenerator.swift; sourceTree = "<group>"; };
 		3C11C0FD2243DDA6006EA640 /* player_base.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = player_base.cpp; sourceTree = "<group>"; };
 		3C11C0FE2243DDA6006EA640 /* player_base.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = player_base.hpp; sourceTree = "<group>"; };
 		3C11C1052243E8A0006EA640 /* player_param.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = player_param.h; sourceTree = "<group>"; };
@@ -103,6 +107,8 @@
 				3C4009312242CB9D0028A45A /* ffplayer.h */,
 				3C4009322242CB9D0028A45A /* Info.plist */,
 				3C4009712242DBA00028A45A /* player.swift */,
+				AA0200000000000000000003 /* thumbnail.cpp */,
+				AA0200000000000000000001 /* FileThumbnailGenerator.swift */,
 				3C11C0FD2243DDA6006EA640 /* player_base.cpp */,
 				3C11C0FE2243DDA6006EA640 /* player_base.hpp */,
 				3C11C1052243E8A0006EA640 /* player_param.h */,
@@ -211,6 +217,8 @@
 				BE2D3D0D2EB0B27A006DF15C /* FFPlayerUIView.swift in Sources */,
 				3F9151D3236C10C700E5EF65 /* sound.swift in Sources */,
 				3C4009722242DBA00028A45A /* player.swift in Sources */,
+				AA0200000000000000000004 /* thumbnail.cpp in Sources */,
+				AA0200000000000000000002 /* FileThumbnailGenerator.swift in Sources */,
 				3F9151CE236C101A00E5EF65 /* packetQueue.cpp in Sources */,
 				3C11C0FF2243DDA6006EA640 /* player_base.cpp in Sources */,
 				BE189AF8301F1CD600CA48CD /* ebur128.c in Sources */,

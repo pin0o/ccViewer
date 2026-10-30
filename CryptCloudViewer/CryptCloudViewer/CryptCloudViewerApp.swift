@@ -96,6 +96,7 @@ struct CryptCloudViewerApp: App {
     func deletePreviousData() async {
         await CloudFactory.shared.removeAllAuth()
         UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
+        ThumbnailSettings.shared.reset()
         await CloudFactory.shared.cache.deleteAllCache()
         await CloudFactory.shared.initializeDatabase()
 

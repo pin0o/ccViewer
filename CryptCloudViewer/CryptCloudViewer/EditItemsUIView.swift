@@ -135,6 +135,7 @@ struct EditItemsUIView: View {
     }
 
     func reload(_ force: Bool = false) async {
+        if force { ThumbnailService.shared.invalidate(storage: storage) }
         items = await CloudFactory.shared.data.list(storage: storage, targetID: fileid, force: force)
         doSort()
         if fileid.contains("\t") {
@@ -763,7 +764,7 @@ struct EditItemsUIView: View {
                 } header: {
                     Text(title)
                 }
-                ForEach(searchedItems, id: \.self) { item in
+                ForEach(searchedItems, id: \.thumbnailRowID) { item in
                     if item.id != nil {
                         if item.folder {
                             HStack {
@@ -773,16 +774,19 @@ struct EditItemsUIView: View {
                                 else {
                                     Image(systemName: "square")
                                 }
-                                VStack(alignment: .leading) {
-                                    Text(verbatim: item.name ?? "")
-                                        .font(.headline)
-                                    if let mdate = item.mdate {
-                                        Text(verbatim: "\(f.string(from: mdate))\tfolder")
-                                            .font(.footnote)
-                                    }
-                                    else {
-                                        Text(verbatim: "\tfolder")
-                                            .font(.footnote)
+                                HStack {
+                                    FileThumbnailView(item: item)
+                                    VStack(alignment: .leading) {
+                                        Text(verbatim: item.name ?? "")
+                                            .font(.headline)
+                                        if let mdate = item.mdate {
+                                            Text(verbatim: "\(f.string(from: mdate))\tfolder")
+                                                .font(.footnote)
+                                        }
+                                        else {
+                                            Text(verbatim: "\tfolder")
+                                                .font(.footnote)
+                                        }
                                     }
                                 }
                             }
@@ -804,16 +808,19 @@ struct EditItemsUIView: View {
                                 else {
                                     Image(systemName: "square")
                                 }
-                                VStack(alignment: .leading) {
-                                    Text(verbatim: item.name ?? "")
-                                        .font(.headline)
-                                    if let mdate = item.mdate {
-                                        Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                            .font(.footnote)
-                                    }
-                                    else {
-                                        Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                            .font(.footnote)
+                                HStack {
+                                    FileThumbnailView(item: item)
+                                    VStack(alignment: .leading) {
+                                        Text(verbatim: item.name ?? "")
+                                            .font(.headline)
+                                        if let mdate = item.mdate {
+                                            Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                                .font(.footnote)
+                                        }
+                                        else {
+                                            Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                                .font(.footnote)
+                                        }
                                     }
                                 }
                             }

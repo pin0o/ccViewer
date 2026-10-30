@@ -231,16 +231,19 @@ struct PlaylistUIView: View {
                 List {
                     Section {
                         ForEach(searchedItems, id: \.self) { id in
-                            VStack(alignment: .leading) {
-                                Text(verbatim: items[id]?.name ?? "")
-                                    .font(.headline)
-                                if let mdate = items[id]?.mdate {
-                                    Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(items[id]!.size))) (\(formatter.string(from: items[id]!.size as NSNumber) ?? "0") bytes) \t\(items[id]?.subinfo ?? "")")
-                                        .font(.footnote)
-                                }
-                                else {
-                                    Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(items[id]!.size))) (\(formatter.string(from: items[id]!.size as NSNumber) ?? "0") bytes) \t\(items[id]?.subinfo ?? "")")
-                                        .font(.footnote)
+                            HStack {
+                                if let item = items[id] { FileThumbnailView(item: item) }
+                                VStack(alignment: .leading) {
+                                    Text(verbatim: items[id]?.name ?? "")
+                                        .font(.headline)
+                                    if let mdate = items[id]?.mdate {
+                                        Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(items[id]!.size))) (\(formatter.string(from: items[id]!.size as NSNumber) ?? "0") bytes) \t\(items[id]?.subinfo ?? "")")
+                                            .font(.footnote)
+                                    }
+                                    else {
+                                        Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(items[id]!.size))) (\(formatter.string(from: items[id]!.size as NSNumber) ?? "0") bytes) \t\(items[id]?.subinfo ?? "")")
+                                            .font(.footnote)
+                                    }
                                 }
                             }
                             .draggable(PlayItem(items[id]!)) {
@@ -268,6 +271,7 @@ struct PlaylistUIView: View {
                 }
                 .searchable(text: $searchText)
                 .refreshable {
+                    ThumbnailService.shared.invalidate()
                     isLoading = true
                     await reload()
                     isLoading = false

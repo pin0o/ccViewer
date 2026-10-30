@@ -671,7 +671,7 @@ public class SambaStorage: NetworkStorage {
         }
         catch {
             print(error)
-            await disconnect()
+            if ThumbnailReadScope.current == nil { await disconnect() }
             return nil
         }
     }

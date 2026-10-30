@@ -12,7 +12,9 @@ import AVFoundation
 @Observable class UserStateObject {
     static var shared = UserStateObject()
     var tutorial = UserDefaults.standard.bool(forKey: "tutorial")
-    var locked = true
+    var locked = true {
+        didSet { ThumbnailService.shared.setLocked(locked && isPassworded) }
+    }
     var isPassworded: Bool {
         func getKeyChain(key: String) -> String? {
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,

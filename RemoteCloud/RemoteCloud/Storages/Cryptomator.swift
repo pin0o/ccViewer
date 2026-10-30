@@ -1625,7 +1625,7 @@ public class RemoteCryptomatorStream: SlotStream {
     }
     
     override func cancelInternal() async {
-        await remote.cancel()
+        if thumbnailScope == nil { await remote.cancel() }
     }
     
     override func fillHeader() async {

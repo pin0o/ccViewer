@@ -1,0 +1,82 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: [feature_thumbnail]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select Xcode 26
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          apps = list(pathlib.Path('/Applications').glob('Xcode_26*.app'))
+          if not apps:
+              raise SystemExit('Xcode 26 is required on this runner')
+          app = max(apps, key=lambda p: tuple(map(int, re.findall(r'\d+', p.name))))
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write(f'DEVELOPER_DIR={app}/Contents/Developer\n')
+          PY
+
+      - uses: actions/cache@v4
+        id: dependencies
+        with:
+          path: |
+            library/install
+            work/output
+            GoogleCastSDK-ios-4.8.4_dynamic_xcframework
+          key: ios26-arm64-dependencies-v1-${{ hashFiles('.gitmodules', 'library/build.sh', 'work/*.sh', 'work/*.patch', '.github/workflows/build-ipa.yml') }}
+
+      - name: Build native dependencies
+        if: steps.dependencies.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install cmake pkg-config nasm
+          (cd library && bash build.sh)
+          curl --fail --location --retry 3 https://dl.google.com/dl/chromecast/sdk/ios/GoogleCastSDK-ios-4.8.4_dynamic.zip -o /tmp/googlecast.zip
+          unzip -q /tmp/googlecast.zip
+          git clone --depth 1 --branch v1.1.1 https://github.com/xqq/libaribcaption.git work/libaribcaption
+          git init work/ffmpeg
+          git -C work/ffmpeg remote add origin https://github.com/FFmpeg/FFmpeg.git
+          # Match the FFmpeg revision embedded in the original repository's binary.
+          git -C work/ffmpeg fetch --depth 1 origin 3eb0cb3b0b0c4ad3ca14818adb26e0f2b6fa1c6c
+          git -C work/ffmpeg checkout --detach FETCH_HEAD
+          (cd work && bash apply_patch.sh && bash build.sh)
+          test -f library/install/lib/libssh.a
+          test -f work/output/ffmpeg.a
+
+      - name: Archive and package unsigned IPA
+        run: bash scripts/build-ipa.sh
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: CryptCloudViewer-unsigned
+          path: build/ipa/CryptCloudViewer-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: build/ipa/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7

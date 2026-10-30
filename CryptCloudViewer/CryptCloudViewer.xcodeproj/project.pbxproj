@@ -39,7 +39,7 @@
 		BE0572EC2EC0CC9A00515817 /* RemoteCloud.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = RemoteCloud.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE0573042EC1BBBC00515817 /* ffconverter.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = ffconverter.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE0573072EC1C8FF00515817 /* GoogleCast.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = GoogleCast.xcframework; path = "../GoogleCastSDK-ios-4.8.4_dynamic_xcframework/GoogleCast.xcframework"; sourceTree = "<group>"; };
-		BE0C16AC2EC8804D00C78FEC /* libarchive.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libarchive.tbd; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.1.sdk/usr/lib/libarchive.tbd; sourceTree = DEVELOPER_DIR; };
+		BE0C16AC2EC8804D00C78FEC /* libarchive.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libarchive.tbd; path = usr/lib/libarchive.tbd; sourceTree = SDKROOT; };
 		BE64E9972EA4044800BD4A7E /* CryptCloudViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CryptCloudViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 

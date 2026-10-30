@@ -140,6 +140,7 @@ public class NetworkStorage: RemoteStorageBase {
     }
 
     func callWithRetry<T>(action: @escaping () async throws -> T, callcount: Int = 0, semaphore: Semaphore? = nil, maxCall: Int = 20) async throws -> T {
+        try ThumbnailReadScope.current?.check()
         let semaphore = semaphore ?? callSemaphore
         if callcount > maxCall {
             throw RetryError.Failed
@@ -293,6 +294,7 @@ public class NetworkRemoteItem: RemoteItem {
 }
 
 public class SlotStream: RemoteStream {
+    let thumbnailScope = ThumbnailReadScope.current
     static let slotcount = 20
     static let slotadvance: Int64 = 5
     static let bufSize:Int64 = 1*1024*1024
@@ -413,7 +415,11 @@ public class SlotStream: RemoteStream {
         }
         
         func dataAvailable(pos: ClosedRange<Int64>) -> Bool {
-            return !buffer.allSatisfy({ $0.key > pos.lowerBound || $0.key + Int64($0.value.count) < pos.upperBound })
+            return !buffer.allSatisfy({ $0.key > pos.lowerBound || $0.key + Int64($0.value.count) <= pos.upperBound })
+        }
+
+        func keepOnly(slot: Int64) {
+            buffer = buffer.filter { $0.key == slot }
         }
 
         func disposeBuffer() {
@@ -475,6 +481,7 @@ public class SlotStream: RemoteStream {
     }
 
     func firstFill() async {
+        if thumbnailScope != nil { return }
         await withTaskGroup() { group in
             group.addTask { [self] in
                 let pos1 = Int64(0)
@@ -569,6 +576,30 @@ public class SlotStream: RemoteStream {
     }
 
     override public func read(position : Int64 = 0, length: Int = -1, onProgress: ((Int) async throws ->Void)? = nil) async throws -> Data? {
+        if let scope = thumbnailScope {
+            try scope.check()
+            guard position >= 0, length >= 0, size > 0, !error, isLive else { return nil }
+            if position >= size || length == 0 { return Data() }
+            let count = min(Int64(length), size - position)
+            var result = Data()
+            var cursor = position
+            while cursor < position + count {
+                try scope.check()
+                let start = cursor / Self.bufSize * Self.bufSize
+                let end = min(size - 1, start + Self.bufSize - 1)
+                if await !buffer.dataAvailable(pos: start...end) {
+                    await subFillBuffer(pos: start...end)
+                }
+                try scope.check()
+                guard !error, isLive, await buffer.dataAvailable(pos: start...end) else { return nil }
+                let amount = Int(min(position + count - cursor, end - cursor + 1))
+                let bytes = await buffer.read(position: cursor, length: amount, read_start: cursor, read_end: cursor + Int64(amount) - 1)
+                result.append(bytes)
+                cursor += Int64(amount)
+                await buffer.keepOnly(slot: start)
+            }
+            return result
+        }
         if error {
             return nil
         }
@@ -604,14 +635,14 @@ public class RemoteNetworkStream: SlotStream {
     }
 
     override func cancelInternal() async {
-        await remote.cancel()
+        if thumbnailScope == nil { await remote.cancel() }
     }
     
     override func subFillBuffer(pos: ClosedRange<Int64>) async {
         guard pos.lowerBound >= 0 else { return }
         if isLive, await !buffer.dataAvailable(pos: pos) {
             let len = min(size-1, pos.upperBound) - max(0, pos.lowerBound) + 1
-            let data = try? await remote.remoteStorage.readFile(fileId: remote.id, start: pos.lowerBound, length: len)
+            let data = try? await remote.read(start: pos.lowerBound, length: len)
             if let data = data {
                 await buffer.store(pos: pos.lowerBound, data: data)
             }

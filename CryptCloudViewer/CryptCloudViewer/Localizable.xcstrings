@@ -1,6 +1,61 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Show thumbnails": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サムネイルを表示"
+          }
+        }
+      }
+    },
+    "Enable thumbnail cache": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サムネイルキャッシュを有効にする"
+          }
+        }
+      }
+    },
+    "Thumbnails: Standard storage": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サムネイル：標準ストレージ"
+          }
+        }
+      }
+    },
+    "Thumbnails: Encrypted storage": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サムネイル：暗号化ストレージ"
+          }
+        }
+      }
+    },
+    "Thumbnail caching speeds up redisplay. Thumbnails are regenerated after the app exits.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キャッシュにより再表示が速くなります。アプリ終了後は再生成します。"
+          }
+        }
+      }
+    },
     "" : {
       "shouldTranslate" : false
     },

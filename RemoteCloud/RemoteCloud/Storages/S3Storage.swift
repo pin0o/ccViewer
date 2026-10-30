@@ -344,6 +344,13 @@ public class S3Storage: NetworkStorage, URLSessionDataDelegate {
         }
     }
     
+    override func readFile(fileId: String, start: Int64? = nil, length: Int64? = nil) async throws -> Data? {
+        guard let length, length > 0, let start, start >= 0 else { return nil }
+        let (end, overflow) = start.addingReportingOverflow(length - 1)
+        guard !overflow else { return nil }
+        return await downloadChunk(fileId: fileId, range: start...end)
+    }
+
     func downloadChunk(fileId: String, range: ClosedRange<Int64>) async -> Data? {
         if let cache = await CloudFactory.shared.cache.getCache(storage: storageName ?? "", id: fileId, offset: range.lowerBound, size: Int64(range.count)) {
             if let data = try? Data(contentsOf: cache) {
@@ -1159,7 +1166,7 @@ extension S3Storage {
         
         os_log("%{public}@", log: log, type: .debug, "S3 Request: \(method) \(url.absoluteString)")
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.thumbnailData(for: request)
         
         if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
             let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown S3 Error"
@@ -1267,7 +1274,7 @@ extension S3Storage {
         
         os_log("%{public}@", log: log, type: .debug, "S3 Request: \(method) \(url.absoluteString)")
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.thumbnailData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NSError(domain: "S3", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
         }
@@ -1529,7 +1536,7 @@ public class RemoteS3Stream: SlotStream {
     }
     
     override func cancelInternal() async {
-        await remote.cancel()
+        if thumbnailScope == nil { await remote.cancel() }
     }
     
     override func subFillBuffer(pos: ClosedRange<Int64>) async {
@@ -1543,7 +1550,7 @@ public class RemoteS3Stream: SlotStream {
         
         let len = min(size - 1, pos.upperBound) - pos.lowerBound + 1
         let slot_start = Int(pos.lowerBound / chunkSize)
-        let slot_count = Int(len / chunkSize) + 1
+        let slot_count = Int((len + chunkSize - 1) / chunkSize)
         
         for s in slot_start..<slot_count + slot_start {
             let start = Int64(s) * chunkSize

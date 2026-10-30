@@ -482,6 +482,7 @@ public class FileCache {
     }
 
     public func deleteAllCache() async {
+        NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil)
         await cache.deleteAllCache()
     }
 

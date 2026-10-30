@@ -51,4 +51,18 @@ int set_latency(void *arg, double latency);
 
 double load_sound(void *arg, float *buffer, int num_packets);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Independent, silent, bounded thumbnail decoder. Caller owns the returned RGBA buffer. */
+int thumbnail_extract(void *opaque,
+                      int (*read_packet)(void *, unsigned char *, int),
+                      long long (*seek)(void *, long long, int),
+                      int (*interrupted)(void *), int maximum_pixels,
+                      unsigned char **rgba, int *width, int *height, double *rotation);
+void thumbnail_free(unsigned char *rgba);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* player_main_h */

@@ -567,7 +567,7 @@ public class WebDAVStorage: NetworkStorage, URLSessionTaskDelegate, URLSessionDa
                     request.setValue("bytes=\(s)-\(s+length!-1)", forHTTPHeaderField: "Range")
                 }
                 
-                guard let (data, _) = try? await URLSession.shared.data(for: request, delegate: self) else {
+                guard let (data, _) = try? await URLSession.shared.thumbnailData(for: request, delegate: self) else {
                     throw RetryError.Retry
                 }
                 if let length, data.count != length {
@@ -646,6 +646,9 @@ public class WebDAVStorage: NetworkStorage, URLSessionTaskDelegate, URLSessionDa
     }
 
     override func readFile(fileId: String, start: Int64? = nil, length: Int64? = nil) async throws -> Data? {
+        if ThumbnailReadScope.current != nil {
+            return try await readRangeRead(fileId: fileId, start: start, length: length)
+        }
         if let acceptRange = acceptRange {
             if acceptRange {
                 return try await readRangeRead(fileId: fileId, start: start, length: length)

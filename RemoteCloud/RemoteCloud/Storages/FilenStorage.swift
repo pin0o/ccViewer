@@ -729,7 +729,7 @@ public class FilenStorage: NetworkStorage, URLSessionDataDelegate {
                 }
                 request.httpBody = postData
                 
-                guard let (data, _) = try? await URLSession.shared.data(for: request) else {
+                guard let (data, _) = try? await URLSession.shared.thumbnailData(for: request) else {
                     return nil
                 }
                 guard let object = try? JSONSerialization.jsonObject(with: data, options: []) else {
@@ -790,7 +790,7 @@ public class FilenStorage: NetworkStorage, URLSessionDataDelegate {
                 request.httpMethod = "GET"
                 request.setValue("Bearer \(await apiKey())", forHTTPHeaderField: "Authorization")
                 
-                guard let (data, _) = try? await URLSession.shared.data(for: request) else {
+                guard let (data, _) = try? await URLSession.shared.thumbnailData(for: request) else {
                     throw RetryError.Retry
                 }
                 guard !data.isEmpty else {
@@ -1488,7 +1488,7 @@ public class RemoteFilenStream: SlotStream {
     }
     
     override func cancelInternal() async {
-        await remote.cancel()
+        if thumbnailScope == nil { await remote.cancel() }
     }
     
     override func fillHeader() async {
@@ -1513,7 +1513,7 @@ public class RemoteFilenStream: SlotStream {
         let len = min(size-1, pos.upperBound) - pos.lowerBound + 1
         
         let slot_start = Int(pos.lowerBound) / chunkSize
-        let slot_count = Int(len) / chunkSize + 1
+        let slot_count = (Int(len) + chunkSize - 1) / chunkSize
         for s in slot_start..<slot_count+slot_start {
             let start = Int64(s) * Int64(chunkSize)
             if await !buffer.dataAvailable(pos: start...start+Int64(chunkSize)) {

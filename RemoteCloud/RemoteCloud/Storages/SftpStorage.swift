@@ -1495,7 +1495,7 @@ public class SftpRemoteItem: RemoteItem {
 }
 
 public class RemoteSftpStream: SlotStream {
-    let chunkSize: Int64 = 8*1024*1024
+    var chunkSize: Int64 { thumbnailScope == nil ? 8*1024*1024 : Self.bufSize }
     let remote: SftpRemoteItem
     let log = OSLog(subsystem: Bundle.main.bundleIdentifier!, category: "application")
 
@@ -1524,7 +1524,7 @@ public class RemoteSftpStream: SlotStream {
     
     init(remote: SftpRemoteItem) async {
         self.remote = remote
-        for _ in 0..<4 {
+        for _ in 0..<(ThumbnailReadScope.current == nil ? 4 : 1) {
             if let h = try? await Handle(connection: remote.remoteStorage.getConnection(), path: remote.id) {
                 handles.append(h)
             }
@@ -1545,7 +1545,7 @@ public class RemoteSftpStream: SlotStream {
         for handle in handles {
             await handle.close()
         }
-        await remote.cancel()
+        if thumbnailScope == nil { await remote.cancel() }
     }
     
     override func subFillBuffer(pos: ClosedRange<Int64>) async {
@@ -1559,7 +1559,7 @@ public class RemoteSftpStream: SlotStream {
         
         let len = min(size - 1, pos.upperBound) - pos.lowerBound + 1
         let slot_start = Int(pos.lowerBound / chunkSize)
-        let slot_count = Int(len / chunkSize) + 1
+        let slot_count = Int((len + chunkSize - 1) / chunkSize)
         
         for s in slot_start..<slot_count + slot_start {
             let start = Int64(s) * chunkSize
@@ -1576,6 +1576,7 @@ public class RemoteSftpStream: SlotStream {
                     }
                 }
                 do {
+                    try ThumbnailReadScope.current?.consume(Int(chunkLen))
                     let data = try await getHandle().read(
                         offset: UInt64(start),
                         length: Int(chunkLen)

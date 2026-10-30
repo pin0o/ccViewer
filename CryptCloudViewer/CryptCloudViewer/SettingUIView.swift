@@ -182,6 +182,7 @@ struct SettingUIView: View {
     static func doAllDelete() async {
         await CloudFactory.shared.removeAllAuth()
         UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
+        ThumbnailSettings.shared.reset()
         try? await CloudFactory.shared.data.clearAllData()
         await CloudFactory.shared.cache.deleteAllCache()
         await CloudFactory.shared.initializeDatabase()
@@ -258,6 +259,9 @@ struct SettingUIView: View {
             } header: {
                 Text("Viewer")
             }
+
+            ThumbnailSettingsSection(group: .standard)
+            ThumbnailSettingsSection(group: .encrypted)
 
             Section {
                 HStack {
