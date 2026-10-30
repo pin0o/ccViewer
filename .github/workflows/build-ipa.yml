@@ -40,7 +40,9 @@ jobs:
             library/install
             work/output
             GoogleCastSDK-ios-4.8.4_dynamic_xcframework
-          key: ios26-arm64-dependencies-v2-${{ hashFiles('.gitmodules', 'library/build.sh', 'scripts/prepare-ios-dependencies.sh', 'ffplayer/ffplayer/ffmpeg.a') }}
+          key: ios26-arm64-dependencies-v3-${{ hashFiles('.gitmodules', 'library/build.sh', 'scripts/prepare-ios-dependencies.sh', 'work/*.sh', 'work/*.patch') }}
+          restore-keys: |
+            ios26-arm64-dependencies-v2-
 
       - name: Build native dependencies
         if: steps.dependencies.outputs.cache-hit != 'true'

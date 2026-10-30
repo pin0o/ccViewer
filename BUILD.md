@@ -16,7 +16,7 @@ bash scripts/build-ipa.sh
 
 出力先は `build/ipa/CryptCloudViewer-unsigned.ipa`、ログは `build/ipa/xcodebuild.log` です。`IPA_BUILD_DIR` で絶対パスの出力先を指定できます。
 
-GitHub Actions は元リポジトリに含まれる arm64 iOS 用 FFmpeg バイナリを再利用し、同じリビジョンの公開ヘッダを生成します。依存ライブラリはアプリのコンパイル前にキャッシュし、アプリ側の修正で再コンパイルしなくて済むようにしています。標準の SDK 相対パスで libarchive を解決し、Xcode 26 のマイナーバージョンごとの SDK ディレクトリ名に依存しません。
+GitHub Actions は FFmpeg のリビジョンを固定し、iOS 17 向けにライブラリとヘッダをビルドします。同梱アーカイブは iOS 26 向けのため、iOS 17.6 との互換性を保つ目的で再利用しません。依存ライブラリはアプリのコンパイル前にキャッシュし、アプリ側の修正で再コンパイルしなくて済むようにしています。標準の SDK 相対パスで libarchive を解決し、Xcode 26 のマイナーバージョンごとの SDK ディレクトリ名に依存しません。
 
 ## 初回実装の検証
 
