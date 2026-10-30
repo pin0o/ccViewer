@@ -33,33 +33,35 @@ jobs:
               stream.write(f'DEVELOPER_DIR={app}/Contents/Developer\n')
           PY
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         id: dependencies
         with:
           path: |
             library/install
             work/output
             GoogleCastSDK-ios-4.8.4_dynamic_xcframework
-          key: ios26-arm64-dependencies-v1-${{ hashFiles('.gitmodules', 'library/build.sh', 'work/*.sh', 'work/*.patch', '.github/workflows/build-ipa.yml') }}
+          key: ios26-arm64-dependencies-v2-${{ hashFiles('.gitmodules', 'library/build.sh', 'scripts/prepare-ios-dependencies.sh', 'ffplayer/ffplayer/ffmpeg.a') }}
 
       - name: Build native dependencies
         if: steps.dependencies.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
-          brew install cmake pkg-config nasm
-          (cd library && bash build.sh)
-          curl --fail --location --retry 3 https://dl.google.com/dl/chromecast/sdk/ios/GoogleCastSDK-ios-4.8.4_dynamic.zip -o /tmp/googlecast.zip
-          unzip -q /tmp/googlecast.zip
-          git clone --depth 1 --branch v1.1.1 https://github.com/xqq/libaribcaption.git work/libaribcaption
-          git init work/ffmpeg
-          git -C work/ffmpeg remote add origin https://github.com/FFmpeg/FFmpeg.git
-          # Match the FFmpeg revision embedded in the original repository's binary.
-          git -C work/ffmpeg fetch --depth 1 origin 3eb0cb3b0b0c4ad3ca14818adb26e0f2b6fa1c6c
-          git -C work/ffmpeg checkout --detach FETCH_HEAD
-          (cd work && bash apply_patch.sh && bash build.sh)
-          test -f library/install/lib/libssh.a
-          test -f work/output/ffmpeg.a
+          mkdir -p build
+          bash scripts/prepare-ios-dependencies.sh > build/dependencies.log 2>&1 || {
+            tail -n 100 build/dependencies.log
+            exit 1
+          }
+
+      - name: Save native dependencies before compiling the app
+        if: steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            library/install
+            work/output
+            GoogleCastSDK-ios-4.8.4_dynamic_xcframework
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
 
       - name: Archive and package unsigned IPA
         run: bash scripts/build-ipa.sh
@@ -78,5 +80,14 @@ jobs:
         with:
           name: xcodebuild-log
           path: build/ipa/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload dependency log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-dependencies-log
+          path: build/dependencies.log
           if-no-files-found: ignore
           retention-days: 7

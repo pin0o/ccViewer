@@ -1,5 +1,5 @@
 import SwiftUI
-import UniformTypeIdentifiers
+internal import UniformTypeIdentifiers
 import RemoteCloud
 import ffplayer
 import ffconverter
