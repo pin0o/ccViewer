@@ -36,7 +36,7 @@ UserDefaults、Core Data、キャッシュ、Files に公開する Documents は
 
 - Xcode で署名する場合は、自分の Development Team を設定してください。iCloud を使う場合は PoC の App ID と上記コンテナを自分の Apple Developer アカウントで登録します。AltStore の署名方式で対応できない entitlement や iCloud 機能は利用できません。
 - Dropbox の redirect URI は `io.github.pin0o.ccviewer-poc.dropbox://dropbox_callback`、OneDrive は `io.github.pin0o.ccviewer-poc.onedrive://auth`、pCloud は `io.github.pin0o.ccviewer-poc.pcloud://oauth2redirect` です。各プロバイダーで PoC 用クライアントを作成し、`RemoteCloud/RemoteCloud/Secret.swift` の空欄を設定してください。
-- Google は `io.github.pin0o.ccViewerPoC` 用の iOS OAuth クライアントを作成し、`Secret.xcconfig` の `GIDClientID` と、それに対応する reversed client ID を `GIDURLScheme` に設定してください。初期値 `io.github.pin0o.ccviewer-poc.google` は元アプリと重複しない仮値で、Google 認証用の登録済みスキームではありません。
+- Google の `GIDClientID` と `GIDURLScheme` には、提供された PoC 用 Client ID と対応する reversed client ID を設定済みです。Google Cloud 側では iOS OAuth クライアントの Bundle ID、Drive API、OAuth 同意画面・テストユーザーを設定してください。ビルド元の Bundle ID は `io.github.pin0o.ccViewerPoC` です。AltStore が Bundle ID を変更する場合は、署名後の実際の ID に登録内容を合わせます。
 - Cast の receiver ID と Google の debug API key も PoC 専用の登録情報を使用してください。現在のリポジトリでは空欄です。Cast SDK など第三者が定義する通信プロトコル名や SDK 自体の Bundle ID は、そのサービスとの互換性のために維持します。
 
 ビルドスクリプトは IPA 作成前に、アプリと自作フレームワークの Bundle ID・アプリ表示名が PoC 用であることを検証します。

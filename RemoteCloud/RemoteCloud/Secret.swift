@@ -15,8 +15,8 @@ public enum PoCAppIdentity {
 
 class SecretItems {
     public class Google {
-        public static let callbackUrlScheme = "io.github.pin0o.ccviewer-poc.google"
-        public static let client_id = ""
+        public static let callbackUrlScheme = "com.googleusercontent.apps.391464667029-b4dvg0kesr6hjs3lani2i7m9jjh8nq5g"
+        public static let client_id = "391464667029-b4dvg0kesr6hjs3lani2i7m9jjh8nq5g.apps.googleusercontent.com"
     }
     public class Dropbox {
         public static let client_id = ""
