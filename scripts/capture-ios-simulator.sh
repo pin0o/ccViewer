@@ -9,7 +9,18 @@ xcodebuild -workspace CryptCloudViewer.xcworkspace -scheme CryptCloudViewer \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS='' DEVELOPMENT_TEAM='' \
   build 2>&1 | tee "$task_output/xcodebuild.log"
 task_app="$PWD/build/simulator-derived/Build/Products/Debug-iphonesimulator/CryptCloudViewer.app"
-codesign --force --deep --sign - "$task_app"
+# A simulator-only identity permits the real Keychain path used by disk encryption.
+cat > "$task_output/simulator-entitlements.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>application-identifier</key><string>POCSIMTEST.io.github.pin0o.ccViewerPoC</string>
+<key>com.apple.developer.team-identifier</key><string>POCSIMTEST</string>
+<key>keychain-access-groups</key><array><string>POCSIMTEST.io.github.pin0o.ccViewerPoC</string></array>
+<key>get-task-allow</key><true/>
+</dict></plist>
+PLIST
+codesign --force --deep --sign - --entitlements "$task_output/simulator-entitlements.plist" "$task_app"
 
 xcrun simctl list devices available --json > "$task_output/devices.json"
 task_udid="$(python3 - "$task_output/devices.json" <<'PY'
@@ -33,14 +44,14 @@ task_bundle=io.github.pin0o.ccViewerPoC
 task_container="$(xcrun simctl get_app_container "$task_udid" "$task_bundle" data)"
 xcrun swift scripts/make-simulator-fixtures.swift "$task_container/Documents"
 
-for task_variant in list grid-small grid-medium grid-large; do
+for task_variant in list grid-small grid-medium grid-large list-reopened; do
   task_layout=grid
   task_size="${task_variant#grid-}"
-  if [[ "$task_variant" == list ]]; then task_layout=list; task_size=medium; fi
+  if [[ "$task_variant" == list* ]]; then task_layout=list; task_size=medium; fi
   xcrun simctl terminate "$task_udid" "$task_bundle" >/dev/null 2>&1 || true
   rm -f "$task_container/Library/Caches/.ui-snapshot-ready"
   xcrun simctl launch --console-pty "$task_udid" "$task_bundle" \
-    --snapshot-local-files -tutorial YES -paramInit 1 -previousBuildNo 197 \
+    --snapshot-local-files -tutorial YES -paramInit 1 -previousBuildNo 198 \
     -cloudPlaypos NO -cloudPlaylist NO -savePlaypos NO \
     -browser.layout "$task_layout" -browser.gridSize "$task_size" \
     -AppleLanguages '(ja)' -AppleLocale ja_JP \
@@ -65,4 +76,12 @@ for task_variant in list grid-small grid-medium grid-large; do
   xcrun simctl terminate "$task_udid" "$task_bundle"
   wait "$task_launch_pid" || true
 done
+python3 - "$task_output/list-reopened-console.log" <<'PY'
+import pathlib, sys
+log = pathlib.Path(sys.argv[1]).read_text(errors='replace')
+hits = log.count('Thumbnail cache: disk')
+assert hits >= 3, f'Expected three disk cache hits after process restart; got {hits}'
+assert 'Thumbnail cache: source' not in log, 'Restart unexpectedly regenerated thumbnails'
+print(f'Process restart verified: {hits} encrypted disk cache hits, no source reads')
+PY
 printf 'Screenshots: %s\n' "$task_output"

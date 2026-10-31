@@ -378,6 +378,7 @@ public class SlotStream: RemoteStream {
         var read_start: Int64 = 0
         var read_end: Int64 = 0
         var buffer: [Int64:Data] = [:]
+        private var thumbnailWindow = ThumbnailBlockWindow()
         
         init(size: Int64) {
             self.size = size
@@ -418,8 +419,9 @@ public class SlotStream: RemoteStream {
             return !buffer.allSatisfy({ $0.key > pos.lowerBound || $0.key + Int64($0.value.count) <= pos.upperBound })
         }
 
-        func keepOnly(slot: Int64) {
-            buffer = buffer.filter { $0.key == slot }
+        func keepForThumbnail(slot: Int64) {
+            let retained = thumbnailWindow.retain(slot: slot, sizes: buffer.mapValues { $0.count })
+            buffer = buffer.filter { retained.contains($0.key) }
         }
 
         func disposeBuffer() {
@@ -596,7 +598,7 @@ public class SlotStream: RemoteStream {
                 let bytes = await buffer.read(position: cursor, length: amount, read_start: cursor, read_end: cursor + Int64(amount) - 1)
                 result.append(bytes)
                 cursor += Int64(amount)
-                await buffer.keepOnly(slot: start)
+                await buffer.keepForThumbnail(slot: start)
             }
             return result
         }

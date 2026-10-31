@@ -319,7 +319,8 @@ public class CloudFactory {
                             if let newClass = classmap[newService] {
                                 os_log("%{public}@", log: log, type: .info, "Restore \(key) \(newService)")
                                 group.addTask {
-                                    await (key, self.newStorage(service: newClass, tagname: key))
+                                    await (key, self.newStorage(service: newClass, tagname: key,
+                                        thumbnailNamespace: conf["thumbnailNamespace"] ?? nil))
                                 }
                             }
                         }
@@ -489,17 +490,31 @@ public class CloudFactory {
         await subject.send(storageList.count)
     }
     
-    public func newStorage(service: CloudStorages, tagname: String) async -> RemoteStorage? {
-        defer { NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil, userInfo: ["storage": tagname]) }
+    public func newStorage(service: CloudStorages, tagname: String, thumbnailNamespace: String? = nil) async -> RemoteStorage? {
+        defer { NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil,
+            userInfo: ["storage": tagname, "preserveDiskCache": !initialized]) }
         if let p = await storageList.get()[tagname] {
             return p
         }
-        await storageList.add(tagname, CloudFactory.createInstance(service: service, tagname: tagname))
+        let instance = await CloudFactory.createInstance(service: service, tagname: tagname)
+        if let instance = instance as? RemoteStorageBase {
+            if service == .Local { instance.thumbnailNamespace = "local-v1" }
+            else if let thumbnailNamespace, UUID(uuidString: thumbnailNamespace) != nil {
+                instance.thumbnailNamespace = thumbnailNamespace
+            }
+        }
+        await storageList.add(tagname, instance)
         await saveConfig()
         if initialized {
             await setShowList(getShowList() + [tagname])
         }
         return await storageList.get()[tagname]
+    }
+
+    public func renewThumbnailNamespace(storage: String) async {
+        guard let service = await storageList.get(storage) as? RemoteStorageBase else { return }
+        service.thumbnailNamespace = UUID().uuidString
+        await saveConfig()
     }
     
     public func storages() async -> [String] {
@@ -746,6 +761,7 @@ public class RemoteStorageBase: NSObject, RemoteStorage {
     let log = OSLog(subsystem: Bundle.main.bundleIdentifier!, category: "application")
     var storageName: String?
     var service: String?
+    public internal(set) var thumbnailNamespace = UUID().uuidString
     var cancelTime = Date(timeIntervalSince1970: 0)
 
     public func cancel() async {
@@ -755,7 +771,8 @@ public class RemoteStorageBase: NSObject, RemoteStorage {
     
     public func config() -> String {
         let conf = ["name": storageName,
-                    "service": service
+                    "service": service,
+                    "thumbnailNamespace": thumbnailNamespace
         ]
         do {
             let json = try JSONSerialization.data(withJSONObject: conf, options: [])

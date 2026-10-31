@@ -3,6 +3,7 @@ internal import UniformTypeIdentifiers
 import RemoteCloud
 import ffplayer
 import ffconverter
+import ImageIO
 
 enum FileIconKind: Equatable {
     case folder, image, video, audio, pdf, text, archive, file
@@ -70,15 +71,25 @@ enum FileIconKind: Equatable {
     private var wakeup: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
     private var identifiedText: Set<RemoteDataDTO> = []
+    private let diskPolicy: ThumbnailDiskPolicy
+    private let disk: ThumbnailDiskCache
+    private var diskMaintenance: Task<Void, Never>?
     var blocked = false
 
     private init() {
+        let policy = ThumbnailDiskPolicy()
+        diskPolicy = policy
+        let service = PoCAppIdentity.keychainService
+        disk = ThumbnailDiskCache(directory: policy.directory, gate: policy.gate) { create in
+            ThumbnailDiskKeychain.load(service: service, create: create)
+        }
         observers.append(NotificationCenter.default.addObserver(forName: .thumbnailInvalidated, object: nil, queue: .main) { notification in
             let storage = notification.userInfo?["storage"] as? String
-            Task { @MainActor in ThumbnailService.shared.invalidate(storage: storage) }
+            let preserve = notification.userInfo?["preserveDiskCache"] as? Bool ?? false
+            Task { @MainActor in ThumbnailService.shared.invalidate(storage: storage, purgeDisk: !preserve) }
         })
         observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
-            Task { @MainActor in ThumbnailService.shared.invalidate() }
+            Task { @MainActor in ThumbnailService.shared.invalidate(purgeDisk: false) }
         })
     }
 
@@ -102,21 +113,38 @@ enum FileIconKind: Equatable {
         if !ThumbnailSettings.shared.cache(group) {
             cache = cache.filter { $0.key.group != group }
             failures = failures.filter { $0.key.group != group }
+            if !display { removeDisk(diskPolicy.rotate(group: group)) }
         }
+        diskPolicy.updateGate()
     }
 
-    func invalidate(storage: String? = nil) {
+    func invalidate(storage: String? = nil, purgeDisk: Bool = true) {
         identifiedText = identifiedText.filter { storage != nil && $0.storage != storage }
         if let storage { storageGenerations[storage, default: 0] += 1 }
         else { globalGeneration += 1 }
         cache = cache.filter { storage != nil && $0.key.item.storage != storage }
         failures = failures.filter { storage != nil && $0.key.item.storage != storage }
         for job in Array(jobs.values) where storage == nil || job.key.item.storage == storage { cancel(job) }
+        if purgeDisk { removeDisk(diskPolicy.rotate(storage: storage)) }
+    }
+
+    private func removeDisk(_ directories: [[String]]) {
+        let previous = diskMaintenance
+        diskMaintenance = Task { [disk] in
+            await previous?.value
+            for directory in directories { await disk.removeDirectory(directory) }
+        }
+    }
+
+    func purgePersistentCache() async {
+        invalidate()
+        await diskMaintenance?.value
     }
 
     func setLocked(_ locked: Bool) {
         blocked = locked
-        if locked { invalidate() }
+        diskPolicy.setSuspended(locked)
+        if locked { invalidate(purgeDisk: false) }
         else { pump() }
     }
 
@@ -137,27 +165,42 @@ enum FileIconKind: Equatable {
         if FileIconKind(key.item) == .image, key.item.size > 20 * 1024 * 1024 { return nil }
         if ThumbnailSettings.shared.cache(key.group) {
             let storedKey = cacheKey(key)
-            if var entry = cache[storedKey], entry.expiry > Date() {
-                entry.touched = Date(); cache[storedKey] = entry
+            let reusable = cache.keys.filter { $0.item == storedKey.item && $0.group == storedKey.group &&
+                $0.generation == storedKey.generation && $0.pixels >= storedKey.pixels && cache[$0]!.expiry > Date() }
+                .min { $0.pixels < $1.pixels }
+            if let reusable, var entry = cache[reusable] {
+                entry.touched = Date(); cache[reusable] = entry
+                trace("memory", key)
                 return entry.image
             }
             cache.removeValue(forKey: storedKey)
             if let until = failures[storedKey], until > Date() { return nil }
             failures.removeValue(forKey: storedKey)
+            if let request = await persistentKey(key), let record = await disk.read(request),
+               let image = await Task.detached(priority: .utility, operation: { Self.decodePNG(record.png) }).value,
+               !Task.isCancelled, valid(key), ThumbnailSettings.shared.cache(key.group), diskPolicy.gate.allows(request) {
+                let stored = Key(item: key.item, group: key.group, pixels: record.pixels, generation: key.generation)
+                store(image, for: stored)
+                trace("disk", key)
+                return image
+            }
         }
+        guard !Task.isCancelled, valid(key) else { return nil }
         let consumer = UUID()
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 guard !Task.isCancelled, valid(key) else { continuation.resume(returning: nil); return }
                 let job: Job
-                if let existing = jobs[key] { job = existing }
+                if let existing = jobs.values.filter({ $0.key.item == key.item && $0.key.group == key.group &&
+                    $0.key.generation == key.generation && $0.key.pixels >= key.pixels })
+                    .min(by: { $0.key.pixels < $1.key.pixels }) { job = existing }
                 else { job = Job(key); jobs[key] = job; pending.append(key) }
                 job.waiters[consumer] = continuation
                 pump()
             }
         } onCancel: {
             Task { @MainActor in
-                guard let job = self.jobs[key] else { return }
+                guard let job = self.jobs.values.first(where: { $0.waiters[consumer] != nil }) else { return }
                 job.waiters.removeValue(forKey: consumer)?.resume(returning: nil)
                 if job.waiters.isEmpty { self.cancel(job) }
             }
@@ -175,13 +218,18 @@ enum FileIconKind: Equatable {
 
     private func pump() {
         pending.removeAll { jobs[$0] == nil }
-        while active.count < 2 {
+        while active.count < ThumbnailWorkPolicy.maximumJobs {
             let videoBusy = active.values.contains { FileIconKind($0.key.item) == .video }
+            let activeBytes = active.values.reduce(Int64(0)) {
+                $0 + ThumbnailWorkPolicy.inputCost(size: $1.key.item.size, video: FileIconKind($1.key.item) == .video)
+            }
             let suspendVideo = Converter.IsCasting() || PiPManager.shared.isActive
             guard let index = pending.firstIndex(where: { key in
-                FileIconKind(key.item) != .video || (!videoBusy && !suspendVideo)
+                ThumbnailWorkPolicy.canStart(activeCount: active.count, activeBytes: activeBytes,
+                    videoActive: videoBusy, size: key.item.size, video: FileIconKind(key.item) == .video,
+                    suspendVideo: suspendVideo)
             }) else {
-                if !pending.isEmpty, wakeup == nil {
+                if !pending.isEmpty, active.isEmpty, wakeup == nil {
                     wakeup = Task {
                         try? await Task.sleep(for: .seconds(1))
                         wakeup = nil; pump()
@@ -198,6 +246,7 @@ enum FileIconKind: Equatable {
                 do {
                     try Task.checkCancellation()
                     guard valid(key), let item = await key.item.getItem() else { throw CancellationError() }
+                    trace("source", key)
                     image = try await FileThumbnailGenerator.generate(item: item,
                         video: FileIconKind(key.item) == .video, maximumPixels: key.pixels)
                 } catch ThumbnailReadError.textFile {
@@ -213,7 +262,10 @@ enum FileIconKind: Equatable {
                     jobs.removeValue(forKey: key)
                     let accepted = !cancelled && valid(key)
                     if accepted, ThumbnailSettings.shared.cache(key.group) {
-                        if let image { store(image, for: key) }
+                        if let image {
+                            store(image, for: key)
+                            Task { await persist(image, for: key) }
+                        }
                         else { failures[cacheKey(key)] = Date().addingTimeInterval(retry) }
                     }
                     let waiters = Array(job.waiters.values); job.waiters.removeAll()
@@ -228,6 +280,10 @@ enum FileIconKind: Equatable {
         let now = Date()
         cache = cache.filter { $0.value.expiry > now }
         failures = failures.filter { $0.value > now }
+        let storedKey = cacheKey(key)
+        let matching = cache.keys.filter { $0.item == storedKey.item && $0.group == storedKey.group && $0.generation == storedKey.generation }
+        if matching.contains(where: { $0.pixels > storedKey.pixels }) { return }
+        for old in matching { cache.removeValue(forKey: old) }
         let cost = image.bytesPerRow * image.height
         let ttl: TimeInterval = key.item.mdate == nil ? 60 : 600
         cache[cacheKey(key)] = Cached(image: image, expiry: now.addingTimeInterval(ttl), cost: cost, touched: now)
@@ -236,5 +292,41 @@ enum FileIconKind: Equatable {
             if total <= 20 * 1024 * 1024 { break }
             cache.removeValue(forKey: oldKey); total -= entry.cost
         }
+    }
+
+    private func persistentKey(_ key: Key) async -> ThumbnailDiskKey? {
+        guard valid(key), ThumbnailSettings.shared.cache(key.group),
+              let storage = key.item.storage,
+              let service = await CloudFactory.shared.storageList.get(storage) as? RemoteStorageBase else { return nil }
+        return diskPolicy.key(item: key.item, namespace: service.thumbnailNamespace, group: key.group, pixels: key.pixels)
+    }
+
+    private func persist(_ image: CGImage, for key: Key) async {
+        guard let request = await persistentKey(key),
+              let png = await Task.detached(priority: .utility, operation: { Self.encodePNG(image) }).value,
+              valid(key), ThumbnailSettings.shared.cache(key.group), diskPolicy.gate.allows(request) else { return }
+        let ttl: TimeInterval = key.item.mdate == nil ? 600 : 7 * 24 * 60 * 60
+        let record = ThumbnailDiskRecord(pixels: key.pixels, expires: Date().addingTimeInterval(ttl), png: png)
+        _ = await disk.store(record, for: request)
+    }
+
+    private nonisolated static func encodePNG(_ image: CGImage) -> Data? {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data as CFMutableData, "public.png" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
+    }
+    private nonisolated static func decodePNG(_ data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+              let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
+              width.intValue > 0, width.intValue <= 512, height.intValue > 0, height.intValue <= 512 else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+    }
+    private func trace(_ source: String, _ key: Key) {
+#if DEBUG
+        print("Thumbnail cache: \(source) pixels=\(key.pixels)")
+#endif
     }
 }

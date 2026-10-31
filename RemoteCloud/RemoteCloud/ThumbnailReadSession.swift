@@ -135,29 +135,37 @@ extension URLSession {
         try scope.check()
         var bounded = request
         bounded.timeoutInterval = min(request.timeoutInterval, scope.timeRemaining)
-        let (bytes, response) = try await self.bytes(for: bounded, delegate: delegate)
-        if request.value(forHTTPHeaderField: "Range") != nil,
-           (response as? HTTPURLResponse)?.statusCode != 206 {
-            scope.cancel()
-            throw ThumbnailReadError.unsupported
-        }
-        guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode) else {
-            scope.cancel()
-            throw ThumbnailReadError.invalidData
-        }
-        var data = Data()
-        var chunk = Data()
-        for try await byte in bytes {
-            chunk.append(byte)
-            if chunk.count == 16 * 1024 {
-                try scope.consume(chunk.count)
-                data.append(chunk)
-                chunk.removeAll(keepingCapacity: true)
+        // A cancellable child Task also interrupts a stalled HTTP response when a row disappears.
+        let reader = Task {
+            let (bytes, response) = try await self.bytes(for: bounded, delegate: delegate)
+            if request.value(forHTTPHeaderField: "Range") != nil,
+               (response as? HTTPURLResponse)?.statusCode != 206 {
+                scope.cancel()
+                throw ThumbnailReadError.unsupported
             }
+            guard let response = response as? HTTPURLResponse, (200...299).contains(response.statusCode) else {
+                scope.cancel()
+                throw ThumbnailReadError.invalidData
+            }
+            var data = Data(capacity: Int(min(2 * 1024 * 1024, max(0, response.expectedContentLength))))
+            var chunk = Data(capacity: 16 * 1024)
+            for try await byte in bytes {
+                chunk.append(byte)
+                if chunk.count == 16 * 1024 {
+                    try scope.consume(chunk.count)
+                    data.append(chunk)
+                    chunk.removeAll(keepingCapacity: true)
+                }
+            }
+            try scope.consume(chunk.count)
+            data.append(chunk)
+            return (data, response)
         }
-        try scope.consume(chunk.count)
-        data.append(chunk)
-        return (data, response)
+        let cancellation = scope.onCancel { reader.cancel() }
+        defer { scope.removeHandler(cancellation) }
+        return try await withTaskCancellationHandler {
+            try await reader.value
+        } onCancel: { reader.cancel() }
     }
 }
 

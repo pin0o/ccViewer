@@ -45,13 +45,13 @@
         }
       }
     },
-    "Thumbnail caching speeds up redisplay. Thumbnails are regenerated after the app exits.": {
+    "Cached thumbnails are encrypted on this device and reused after restarting the app. Turning off caching deletes this storage group’s thumbnails.": {
       "extractionState": "manual",
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "キャッシュにより再表示が速くなります。アプリ終了後は再生成します。"
+            "value": "サムネイルを端末内に暗号化して保存し、アプリ再起動後も再利用します。キャッシュをOFFにすると、この区分の保存済みサムネイルを削除します。"
           }
         }
       }

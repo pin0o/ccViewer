@@ -90,6 +90,8 @@ struct NewStorageUIView: View {
                                             }
                                             return (storage, fileId)
                                         }) {
+                                            await CloudFactory.shared.renewThumbnailNamespace(storage: name)
+                                            await ThumbnailService.shared.purgePersistentCache()
                                             await newitem.list(fileId: "")
                                             pass = true
                                             env.path.removeAll()

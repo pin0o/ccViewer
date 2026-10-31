@@ -56,7 +56,7 @@ struct ThumbnailSettingsSection: View {
         } header: {
             Text(group == .standard ? LocalizedStringKey("Thumbnails: Standard storage") : LocalizedStringKey("Thumbnails: Encrypted storage"))
         } footer: {
-            Text("Thumbnail caching speeds up redisplay. Thumbnails are regenerated after the app exits.")
+            Text("Cached thumbnails are encrypted on this device and reused after restarting the app. Turning off caching deletes this storage group’s thumbnails.")
         }
     }
 }

@@ -39,6 +39,11 @@ jobs:
           xcrun swiftc RemoteCloud/RemoteCloud/GoogleSignInSettings.swift tests/GoogleSignInSettingsTests.swift -o build/google-signin-settings-tests
           build/google-signin-settings-tests
 
+      - name: Test encrypted thumbnail persistence and resource limits
+        run: |
+          xcrun swiftc RemoteCloud/RemoteCloud/ThumbnailDiskCache.swift tests/ThumbnailDiskCacheTests.swift -o build/thumbnail-cache-tests
+          build/thumbnail-cache-tests
+
       - uses: actions/cache/restore@v4
         id: dependencies
         with:
