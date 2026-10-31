@@ -25,7 +25,7 @@ cmake -S library/libssh -B build/simulator-native/libssh \
   -DOPENSSL_CRYPTO_LIBRARY="$task_root/library/install/lib/libcrypto.a" \
   -DOPENSSL_SSL_LIBRARY="$task_root/library/install/lib/libssl.a" \
   -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
-  -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH -DBUILD_STATIC_LIB=ON -DBUILD_SHARED_LIBS=OFF \
+  -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH -DBUILD_STATIC_LIB=OFF -DBUILD_SHARED_LIBS=OFF \
   -DWITH_EXAMPLES=OFF -DWITH_TESTING=OFF -DWITH_GSSAPI=OFF
 cmake --build build/simulator-native/libssh --parallel "$task_jobs"
 cmake --install build/simulator-native/libssh
