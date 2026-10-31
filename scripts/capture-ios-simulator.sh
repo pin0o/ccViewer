@@ -3,24 +3,25 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 task_output="$PWD/build/simulator-screenshots"
 mkdir -p "$task_output"
-xcodebuild -workspace CryptCloudViewer.xcworkspace -scheme CryptCloudViewer \
-  -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath "$PWD/build/simulator-derived" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
-  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS='' DEVELOPMENT_TEAM='' \
-  build 2>&1 | tee "$task_output/xcodebuild.log"
-task_app="$PWD/build/simulator-derived/Build/Products/Debug-iphonesimulator/CryptCloudViewer.app"
-# A simulator-only identity permits the real Keychain path used by disk encryption.
+# CoreSimulator reads entitlements from the executable section, not its ad-hoc signature.
+# See https://github.com/facebook/buck/issues/1304 (the same embedding used by Xcode).
 cat > "$task_output/simulator-entitlements.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>application-identifier</key><string>POCSIMTEST.io.github.pin0o.ccViewerPoC</string>
-<key>com.apple.developer.team-identifier</key><string>POCSIMTEST</string>
 <key>keychain-access-groups</key><array><string>POCSIMTEST.io.github.pin0o.ccViewerPoC</string></array>
-<key>get-task-allow</key><true/>
 </dict></plist>
 PLIST
-codesign --force --deep --sign - --entitlements "$task_output/simulator-entitlements.plist" "$task_app"
+xcodebuild -workspace CryptCloudViewer.xcworkspace -scheme CryptCloudViewer \
+  -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath "$PWD/build/simulator-derived" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS='' DEVELOPMENT_TEAM='' ENABLE_DEBUG_DYLIB=NO \
+  "POC_SIMULATOR_LINKER_FLAGS=-Wl,-sectcreate,__TEXT,__entitlements,$task_output/simulator-entitlements.plist" \
+  build 2>&1 | tee "$task_output/xcodebuild.log"
+task_app="$PWD/build/simulator-derived/Build/Products/Debug-iphonesimulator/CryptCloudViewer.app"
+codesign --force --deep --sign - "$task_app"
+xcrun otool -s __TEXT __entitlements "$task_app/CryptCloudViewer" > "$task_output/embedded-entitlements.log"
 
 xcrun simctl list devices available --json > "$task_output/devices.json"
 task_udid="$(python3 - "$task_output/devices.json" <<'PY'
@@ -59,6 +60,7 @@ for task_variant in list grid-small grid-medium grid-large list-reopened; do
   task_launch_pid=$!
   task_ready=no
   for task_attempt in {1..90}; do
+    if ! kill -0 "$task_launch_pid" 2>/dev/null; then break; fi
     if [[ -f "$task_container/Library/Caches/.ui-snapshot-ready" ]] && \
        [[ "$(cat "$task_container/Library/Caches/.ui-snapshot-ready")" == "$task_layout:$task_size" ]]; then
       task_ready=yes
@@ -69,6 +71,9 @@ for task_variant in list grid-small grid-medium grid-large list-reopened; do
   if [[ "$task_ready" != yes ]]; then
     xcrun simctl io "$task_udid" screenshot "$task_output/$task_variant-failed.png" || true
     tail -n 80 "$task_output/$task_variant-console.log"
+    xcrun simctl spawn "$task_udid" log show --last 3m --style compact \
+      --predicate 'process == "CryptCloudViewer" OR process == "amfid" OR process == "securityd"' \
+      > "$task_output/$task_variant-diagnostics.log" 2>&1 || true
     exit 1
   fi
   sleep 5
