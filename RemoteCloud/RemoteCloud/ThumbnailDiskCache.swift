@@ -196,6 +196,22 @@ public enum ThumbnailWorkPolicy {
     }
 }
 
+/// Fetches may overlap while memory-intensive ImageIO decoding remains bounded.
+public actor ThumbnailDecodeSlots {
+    private let maximum: Int
+    private var active = 0
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    public init(maximum: Int = 2) { self.maximum = max(1, maximum) }
+    public func acquire() async {
+        if active < maximum { active += 1 }
+        else { await withCheckedContinuation { waiting.append($0) } }
+    }
+    public func release() {
+        if waiting.isEmpty { active -= 1 }
+        else { waiting.removeFirst().resume() }
+    }
+}
+
 public struct ThumbnailBlockWindow: Sendable {
     private var recent: [Int64] = []
     public init() {}

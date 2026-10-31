@@ -8,6 +8,10 @@ on:
       - scripts/capture-ios-simulator.sh
       - scripts/make-simulator-fixtures.swift
       - CryptCloudViewer/CryptCloudViewer/SimulatorSnapshotSupport.swift
+      - CryptCloudViewer/CryptCloudViewer/Thumbnail*.swift
+      - RemoteCloud/RemoteCloud/Thumbnail*.swift
+      - RemoteCloud/RemoteCloud/RemoteStorage.swift
+      - ffplayer/ffplayer/FileThumbnailGenerator.swift
   workflow_dispatch:
 permissions:
   contents: read

@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 import RemoteCloud
 
 public enum FileThumbnailGenerator {
+    private static let imageDecoders = ThumbnailDecodeSlots()
     public static func generate(item: RemoteItem, video: Bool, maximumPixels: Int) async throws -> CGImage {
         let session = try await item.openThumbnail(maximumBytes: (video ? 16 : 24) * 1024 * 1024)
         return try await withTaskCancellationHandler {
@@ -34,24 +35,18 @@ public enum FileThumbnailGenerator {
                     }
                     guard item.size > 0, item.size <= 20 * 1024 * 1024 else { throw ThumbnailReadError.limitExceeded }
                     let data = try await session.read(position: 0, length: Int(item.size))
-                    guard data.count == item.size,
-                          let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else {
-                        throw ThumbnailReadError.invalidData
+                    guard data.count == item.size else { throw ThumbnailReadError.invalidData }
+                    await imageDecoders.acquire()
+                    do {
+                        try session.check()
+                        let image = try imageThumbnail(data, maximumPixels: maximumPixels)
+                        try session.check()
+                        await imageDecoders.release()
+                        return image
+                    } catch {
+                        await imageDecoders.release()
+                        throw error
                     }
-                    if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-                       let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
-                       let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
-                       width.doubleValue * height.doubleValue > 64 * 1024 * 1024 {
-                        throw ThumbnailReadError.limitExceeded
-                    }
-                    guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                            kCGImageSourceCreateThumbnailFromImageAlways: true,
-                            kCGImageSourceCreateThumbnailWithTransform: true,
-                            kCGImageSourceThumbnailMaxPixelSize: maximumPixels,
-                            kCGImageSourceShouldCacheImmediately: true
-                          ] as CFDictionary) else { throw ThumbnailReadError.invalidData }
-                    try session.check()
-                    return image
                 }.value
                 try session.check()
                 await session.close()
@@ -61,6 +56,25 @@ public enum FileThumbnailGenerator {
                 throw error
             }
         } onCancel: { session.cancel() }
+    }
+
+    private static func imageThumbnail(_ data: Data, maximumPixels: Int) throws -> CGImage {
+        guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else {
+            throw ThumbnailReadError.invalidData
+        }
+        if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+           let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+           let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
+           width.doubleValue * height.doubleValue > 64 * 1024 * 1024 {
+            throw ThumbnailReadError.limitExceeded
+        }
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumPixels,
+            kCGImageSourceShouldCacheImmediately: true
+        ] as CFDictionary) else { throw ThumbnailReadError.invalidData }
+        return image
     }
 
     private static func videoImage(session: ThumbnailReadSession, ext: String, maximumPixels: Int) async throws -> CGImage {

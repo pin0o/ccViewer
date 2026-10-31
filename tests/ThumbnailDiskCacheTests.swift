@@ -1,6 +1,13 @@
 import Foundation
 import CryptoKit
 
+private actor DecodeProbe {
+    private var active = 0
+    private(set) var peak = 0
+    func enter() { active += 1; peak = max(peak, active) }
+    func leave() { active -= 1 }
+}
+
 @main
 struct ThumbnailDiskCacheTests {
     static var passed = 0
@@ -111,6 +118,21 @@ struct ThumbnailDiskCacheTests {
         check(!ThumbnailWorkPolicy.canStart(activeCount: 1, activeBytes: 16 * mib, videoActive: true, size: mib, video: true, suspendVideo: false), "Two video decoders never run together")
         check(!ThumbnailWorkPolicy.canStart(activeCount: 0, activeBytes: 0, videoActive: false, size: mib, video: true, suspendVideo: true), "Playback suspends new thumbnail video work")
         check(ThumbnailWorkPolicy.canStart(activeCount: 0, activeBytes: 0, videoActive: false, size: mib, video: false, suspendVideo: true), "Playback still permits image thumbnails")
+
+        let decoders = ThumbnailDecodeSlots()
+        let probe = DecodeProbe()
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<12 {
+                group.addTask {
+                    await decoders.acquire()
+                    await probe.enter()
+                    for _ in 0..<10 { await Task.yield() }
+                    await probe.leave()
+                    await decoders.release()
+                }
+            }
+        }
+        check(await probe.peak <= 2, "Parallel downloads cannot start more than two ImageIO decoders")
 
         var window = ThumbnailBlockWindow()
         let block = Int(mib)
