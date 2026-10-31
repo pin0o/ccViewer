@@ -358,6 +358,9 @@ struct MainUIView: View {
                         .store(in: &cancellables)
                     isLoading = true
                 }
+#if targetEnvironment(simulator)
+                await SimulatorSnapshotSupport.openLocalFiles(in: env)
+#endif
             }
         }
     }

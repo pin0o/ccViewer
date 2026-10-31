@@ -121,6 +121,9 @@ struct ItemsUIView: View {
         if title.isEmpty {
             title = storage
         }
+#if targetEnvironment(simulator)
+        SimulatorSnapshotSupport.markReady()
+#endif
     }
     
     func sortButton(key: LocalizedStringKey, idx: Int) -> some View {

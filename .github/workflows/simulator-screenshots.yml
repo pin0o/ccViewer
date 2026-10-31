@@ -1,0 +1,73 @@
+name: Capture iOS simulator screenshots
+on:
+  push:
+    branches: [feature_thumbnail]
+    paths:
+      - .github/workflows/simulator-screenshots.yml
+      - scripts/prepare-ios-simulator-dependencies.sh
+      - scripts/capture-ios-simulator.sh
+      - scripts/make-simulator-fixtures.swift
+      - CryptCloudViewer/CryptCloudViewer/SimulatorSnapshotSupport.swift
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: simulator-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  screenshots:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Select Xcode 26
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          apps = list(pathlib.Path('/Applications').glob('Xcode_26*.app'))
+          app = max(apps, key=lambda p: tuple(map(int, re.findall(r'\d+', p.name))))
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write(f'DEVELOPER_DIR={app}/Contents/Developer\n')
+          PY
+      - uses: actions/cache/restore@v4
+        id: simulator-dependencies
+        with:
+          path: |
+            library/install
+            work/output
+            GoogleCastSDK-ios-4.8.4_dynamic_xcframework
+          key: ios26-arm64-simulator-v1-${{ hashFiles('.gitmodules', 'scripts/prepare-ios-simulator-dependencies.sh', 'work/*.patch') }}
+      - name: Build simulator native dependencies
+        if: steps.simulator-dependencies.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p build
+          bash scripts/prepare-ios-simulator-dependencies.sh > build/simulator-dependencies.log 2>&1 || {
+            tail -n 100 build/simulator-dependencies.log
+            exit 1
+          }
+      - uses: actions/cache/save@v4
+        if: steps.simulator-dependencies.outputs.cache-hit != 'true'
+        with:
+          path: |
+            library/install
+            work/output
+            GoogleCastSDK-ios-4.8.4_dynamic_xcframework
+          key: ${{ steps.simulator-dependencies.outputs.cache-primary-key }}
+      - name: Build, launch, and capture real app screens
+        run: bash scripts/capture-ios-simulator.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-screenshots
+          path: build/simulator-screenshots
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-dependencies-log
+          path: build/simulator-dependencies.log
+          if-no-files-found: ignore
+          retention-days: 7

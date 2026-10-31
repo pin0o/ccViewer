@@ -114,6 +114,9 @@ struct CryptCloudViewerApp: App {
     }
 
     private func configureGoogleSignIn() {
+#if targetEnvironment(simulator)
+        guard !SimulatorSnapshotSupport.enabled else { return }
+#endif
         guard GoogleDriveStorage.isSignInConfigured else { return }
 #if DEBUG
         if !SecretItems.GIDSigninDebugKey.isEmpty {

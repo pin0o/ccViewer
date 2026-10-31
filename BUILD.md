@@ -6,6 +6,14 @@
 
 この IPA はビルド時点では未署名です。AltStore を経由せず、そのまま実機へインストールするものではありません。各クラウドサービスの OAuth 設定は README に記載された独自設定に従います。
 
+## iOS シミュレーターのスクリーンショット
+
+`.github/workflows/simulator-screenshots.yml` は、依存ライブラリを arm64 iOS Simulator 向けに別ビルドし、アプリ本体を起動してリスト／グリッド小・中・大の4画面を撮影します。成果物は `simulator-screenshots` です。初回は実機用とは別のネイティブライブラリを用意するため時間がかかります。
+
+撮影には生成した横長・縦長・透過 PNG とテキスト・フォルダを Local に配置します。実際のファイル一覧・サムネイル・ツールバーを描画し、Google アカウント等の実データは使用しません。シミュレーター専用の `--snapshot-local-files` 引数で Local に遷移し、撮影用の設定を起動引数で指定します。この経路は実機ビルドには含まれません。画面撮影は実機・クラウド認証・動画再生の検証の代わりにはなりません。
+
+Mac 上で依存ライブラリを用意した後、`bash scripts/capture-ios-simulator.sh` でも再現できます。出力先は `build/simulator-screenshots/` です。
+
 ## ローカルの Mac で実行
 
 README の手順に従い、サブモジュール・OpenSSL・libssh・FFmpeg・Google Cast SDK を準備した後に実行します。
