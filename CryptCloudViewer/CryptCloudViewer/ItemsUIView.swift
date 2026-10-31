@@ -38,6 +38,7 @@ struct ItemsUIView: View {
         searchText.isEmpty ? items : items.filter { $0.name?.localizedStandardContains(searchText) ?? false }
     }
     @State private var itemMark: [String: Double] = [:]
+    private let presentation = FileBrowserSettings.shared
     @State private var searchText: String = ""
     @State var sortOrder = UserDefaults.standard.integer(forKey: "ItemSortOrder") {
         didSet {
@@ -147,128 +148,196 @@ struct ItemsUIView: View {
         }
     }
     
-    var body: some View {
-        ZStack {
-            List {
-                Section {
-                    ForEach(searchedItems, id: \.thumbnailRowID) { item in
-                        if item.id != nil {
-                            if item.folder {
-                                NavigationLink(value: HomePath.items(storage: storage, fileid: item.id ?? "")) {
-                                    HStack {
-                                        FileThumbnailView(item: item)
-                                        VStack(alignment: .leading) {
-                                            Text(verbatim: item.name ?? "")
-                                                .font(.headline)
-                                            if let mdate = item.mdate {
-                                                Text(verbatim: "\(f.string(from: mdate))\tfolder")
-                                                    .font(.footnote)
-                                            }
-                                            else {
-                                                Text(verbatim: "\tfolder")
-                                                    .font(.footnote)
-                                            }
-                                        }
-                                    }
-                                }
-                                .listRowBackground(Color("FolderColor"))
-                            }
-                            else if item.hasSubitems {
+    private var listContent: some View {
+        List {
+            Section {
+                ForEach(searchedItems, id: \.thumbnailRowID) { item in
+                    if item.id != nil {
+                        if item.folder {
+                            NavigationLink(value: HomePath.items(storage: storage, fileid: item.id ?? "")) {
                                 HStack {
-                                    HStack {
-                                        FileThumbnailView(item: item)
-                                        VStack(alignment: .leading) {
-                                            Text(verbatim: item.name ?? "")
-                                                .font(.headline)
-                                            if let mdate = item.mdate {
-                                                Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                                    .font(.footnote)
-                                            }
-                                            else {
-                                                Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                                    .font(.footnote)
-                                            }
+                                    FileThumbnailView(item: item)
+                                    VStack(alignment: .leading) {
+                                        Text(verbatim: item.name ?? "")
+                                            .font(.headline)
+                                        if let mdate = item.mdate {
+                                            Text(verbatim: "\(f.string(from: mdate))\tfolder")
+                                                .font(.footnote)
+                                        }
+                                        else {
+                                            Text(verbatim: "\tfolder")
+                                                .font(.footnote)
                                         }
                                     }
-                                    Spacer()
                                 }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    env.path.append(HomePath.items(storage: storage, fileid: item.id ?? ""))
-                                }
-                                .onLongPressGesture(minimumDuration: 1.0) {
-                                    env.path.append(HomePath.rawopen(storage: storage, fileid: item.id ?? ""))
-                                }
-                                .listRowBackground(Color("CueColor"))
                             }
-                            else {
+                            .listRowBackground(Color("FolderColor"))
+                        }
+                        else if item.hasSubitems {
+                            HStack {
                                 HStack {
-                                    HStack {
-                                        FileThumbnailView(item: item)
-                                        VStack(alignment: .leading) {
-                                            Text(verbatim: item.name ?? "")
-                                                .font(.headline)
-                                            if let mdate = item.mdate {
-                                                Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                                    .font(.footnote)
-                                            }
-                                            else {
-                                                Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                                    .font(.footnote)
-                                            }
+                                    FileThumbnailView(item: item)
+                                    VStack(alignment: .leading) {
+                                        Text(verbatim: item.name ?? "")
+                                            .font(.headline)
+                                        if let mdate = item.mdate {
+                                            Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                                .font(.footnote)
+                                        }
+                                        else {
+                                            Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                                .font(.footnote)
                                         }
                                     }
-                                    Spacer()
                                 }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    if Converter.IsCasting() {
-                                        isLoading = true
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                env.path.append(HomePath.items(storage: storage, fileid: item.id ?? ""))
+                            }
+                            .onLongPressGesture(minimumDuration: 1.0) {
+                                env.path.append(HomePath.rawopen(storage: storage, fileid: item.id ?? ""))
+                            }
+                            .listRowBackground(Color("CueColor"))
+                        }
+                        else {
+                            HStack {
+                                HStack {
+                                    FileThumbnailView(item: item)
+                                    VStack(alignment: .leading) {
+                                        Text(verbatim: item.name ?? "")
+                                            .font(.headline)
+                                        if let mdate = item.mdate {
+                                            Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                                .font(.footnote)
+                                        }
+                                        else {
+                                            Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                                .font(.footnote)
+                                        }
+                                    }
+                                }
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if Converter.IsCasting() {
+                                    isLoading = true
+                                    Task {
+                                        defer {
+                                            isLoading = false
+                                        }
+                                        await playConverter(storages: [storage], fileids: [item.id ?? ""])
+                                    }
+                                }
+                                else {
+                                    env.path.append(HomePath.open(storages: [storage], fileids: [item.id ?? ""], playlist: false))
+                                }
+                            }
+                            .onLongPressGesture(minimumDuration: 1.0) {
+                                env.path.append(HomePath.rawopen(storage: storage, fileid: item.id ?? ""))
+                            }
+                            .listRowBackground(itemMark[item.id ?? ""] != nil ? backgroundColor(item) : nil)
+                            .swipeActions {
+                                if UserDefaults.standard.bool(forKey: "savePlaypos") {
+                                    Button {
                                         Task {
-                                            defer {
-                                                isLoading = false
-                                            }
-                                            await playConverter(storages: [storage], fileids: [item.id ?? ""])
-                                        }
-                                    }
-                                    else {
-                                        env.path.append(HomePath.open(storages: [storage], fileids: [item.id ?? ""], playlist: false))
-                                    }
-                                }
-                                .onLongPressGesture(minimumDuration: 1.0) {
-                                    env.path.append(HomePath.rawopen(storage: storage, fileid: item.id ?? ""))
-                                }
-                                .listRowBackground(itemMark[item.id ?? ""] != nil ? backgroundColor(item) : nil)
-                                .swipeActions {
-                                    if UserDefaults.standard.bool(forKey: "savePlaypos") {
-                                        Button {
-                                            Task {
-                                                isLoading = true
-                                                if itemMark[item.id ?? ""] != nil  {
-                                                    await CloudFactory.shared.mark.setMark(storage: storage, targetID: item.id ?? "", parentID: fileid, position: nil)
-                                                }
-                                                else {
-                                                    await CloudFactory.shared.mark.setMark(storage: storage, targetID: item.id ?? "", parentID: fileid, position: 1.0)
-                                                }
-                                                await getMarks()
-                                                isLoading = false
-                                            }
-                                        } label: {
-                                            if itemMark[item.id ?? ""] != nil {
-                                                Label("Unmark", systemImage: "eraser")
+                                            isLoading = true
+                                            if itemMark[item.id ?? ""] != nil  {
+                                                await CloudFactory.shared.mark.setMark(storage: storage, targetID: item.id ?? "", parentID: fileid, position: nil)
                                             }
                                             else {
-                                                Label("Mark", systemImage: "checkmark.circle")
-                                                    .tint(.green)
+                                                await CloudFactory.shared.mark.setMark(storage: storage, targetID: item.id ?? "", parentID: fileid, position: 1.0)
                                             }
+                                            await getMarks()
+                                            isLoading = false
+                                        }
+                                    } label: {
+                                        if itemMark[item.id ?? ""] != nil {
+                                            Label("Unmark", systemImage: "eraser")
+                                        }
+                                        else {
+                                            Label("Mark", systemImage: "checkmark.circle")
+                                                .tint(.green)
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                } header: {
-                    Text(title)
+                }
+            } header: {
+                Text(title)
+            }
+        }
+    }
+
+    private var gridContent: some View {
+        FileBrowserGrid(size: presentation.gridSize, title: title) {
+            ForEach(searchedItems, id: \.thumbnailRowID) { item in
+                if item.id != nil {
+                    if item.folder {
+                        NavigationLink(value: HomePath.items(storage: storage, fileid: item.id ?? "")) {
+                            FileGridCell(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Button { openGridItem(item) } label: {
+                            FileGridCell(item: item, playedProgress: itemMark[item.id ?? ""])
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                env.path.append(HomePath.rawopen(storage: storage, fileid: item.id ?? ""))
+                            } label: {
+                                Label("Open original", systemImage: "doc")
+                            }
+                            if !item.hasSubitems, UserDefaults.standard.bool(forKey: "savePlaypos") {
+                                Button {
+                                    Task {
+                                        isLoading = true
+                                        defer { isLoading = false }
+                                        let position: Double? = itemMark[item.id ?? ""] == nil ? 1 : nil
+                                        await CloudFactory.shared.mark.setMark(storage: storage, targetID: item.id ?? "", parentID: fileid, position: position)
+                                        await getMarks()
+                                    }
+                                } label: {
+                                    if itemMark[item.id ?? ""] == nil {
+                                        Label("Mark", systemImage: "checkmark.circle")
+                                    } else {
+                                        Label("Unmark", systemImage: "eraser")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func openGridItem(_ item: RemoteDataDTO) {
+        if item.hasSubitems {
+            env.path.append(HomePath.items(storage: storage, fileid: item.id ?? ""))
+        } else if Converter.IsCasting() {
+            isLoading = true
+            Task {
+                defer { isLoading = false }
+                await playConverter(storages: [storage], fileids: [item.id ?? ""])
+            }
+        } else {
+            env.path.append(HomePath.open(storages: [storage], fileids: [item.id ?? ""], playlist: false))
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Group {
+                if presentation.layout == .grid {
+                    gridContent
+                } else {
+                    listContent
                 }
             }
             .searchable(text: $searchText)
@@ -527,6 +596,7 @@ struct ItemsUIView: View {
         }
         .navigationTitle(title)
         .toolbar {
+            ToolbarItem { FileBrowserDisplayMenu() }
             ToolbarItem() {
                 NavigationLink(value: HomePath.edit(storage: storage, fileid: fileid)) {
                     Image(systemName: "square.and.pencil")

@@ -185,6 +185,7 @@ struct SettingUIView: View {
         await CloudFactory.shared.removeAllAuth()
         UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
         ThumbnailSettings.shared.reset()
+        FileBrowserSettings.shared.reset()
         try? await CloudFactory.shared.data.clearAllData()
         await CloudFactory.shared.cache.deleteAllCache()
         await CloudFactory.shared.initializeDatabase()
@@ -262,6 +263,7 @@ struct SettingUIView: View {
                 Text("Viewer")
             }
 
+            FileBrowserSettingsSection()
             ThumbnailSettingsSection(group: .standard)
             ThumbnailSettingsSection(group: .encrypted)
 

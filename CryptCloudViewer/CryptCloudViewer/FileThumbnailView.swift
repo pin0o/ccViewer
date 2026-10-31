@@ -3,6 +3,7 @@ import RemoteCloud
 
 struct FileThumbnailView: View {
     let item: RemoteDataDTO
+    let side: CGFloat
     @Environment(\.displayScale) private var displayScale
     @State private var group: ThumbnailGroup?
     @State private var image: CGImage?
@@ -10,6 +11,11 @@ struct FileThumbnailView: View {
     @State private var visible = false
     private let settings = ThumbnailSettings.shared
     private let service = ThumbnailService.shared
+
+    init(item: RemoteDataDTO, side: CGFloat = 48) {
+        self.item = item
+        self.side = side.isFinite ? max(1, side) : 48
+    }
 
     private struct Request: Hashable {
         let key: ThumbnailService.Key?
@@ -22,7 +28,7 @@ struct FileThumbnailView: View {
             return Request(key: nil, display: false, blocked: service.blocked, visible: visible)
         }
         return Request(key: ThumbnailService.Key(item: item, group: group,
-            pixels: min(512, max(48, Int(48 * displayScale))),
+            pixels: Int(min(512, max(48, (side * displayScale).rounded(.up)))),
             generation: service.generation(storage: item.storage ?? "", group: group)),
             display: settings.display(group), blocked: service.blocked, visible: visible)
     }
@@ -30,22 +36,26 @@ struct FileThumbnailView: View {
     var body: some View {
         let kind = service.kind(item)
         let current = request
-        ZStack(alignment: .bottomTrailing) {
-            RoundedRectangle(cornerRadius: 6).fill(.quaternary)
+        Group {
             if current.display, !current.blocked, let image {
                 Image(decorative: image, scale: displayScale)
-                    .resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 6))
-                if kind == .video {
-                    Image(systemName: "play.fill").font(.caption2)
-                        .padding(3).foregroundStyle(.white).background(.black.opacity(0.65), in: Circle()).padding(2)
-                }
+                    .resizable().scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(alignment: .bottomTrailing) {
+                        if kind == .video {
+                            Image(systemName: "play.fill").font(.caption2)
+                                .padding(3).foregroundStyle(.white)
+                                .background(.black.opacity(0.65), in: Circle()).padding(2)
+                        }
+                    }
             } else {
-                Image(systemName: kind.symbol).font(.title2)
+                Image(systemName: kind.symbol).font(.system(size: min(56, side * 0.48)))
                     .foregroundStyle(kind == .folder ? Color.accentColor : .secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: side, height: side)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
             }
         }
-        .frame(width: 48, height: 48)
+        .frame(width: side, height: side)
         .accessibilityHidden(true)
         .task(id: "\(item.storage ?? ""):\(service.connectionVersion(item.storage ?? ""))") {
             image = nil

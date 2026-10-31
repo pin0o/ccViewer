@@ -59,6 +59,7 @@ struct EditItemsUIView: View {
     private var searchedItems: [RemoteDataDTO] {
         searchText.isEmpty ? items : items.filter { $0.name?.localizedStandardContains(searchText) ?? false }
     }
+    private let presentation = FileBrowserSettings.shared
     @State private var searchText: String = ""
     @State var selection: [String] = []
     @State var sortOrder = UserDefaults.standard.integer(forKey: "ItemSortOrder") {
@@ -266,574 +267,610 @@ struct EditItemsUIView: View {
         .scrollContentBackground(.hidden)
     }
     
-    var body: some View {
-        ZStack {
-            List {
-                Section {
-                    HStack {
-                        Text("All: \(items.count)  Display: \(searchedItems.count) Selected: \(selection.count)")
-                        Button {
-                            selection = searchedItems.compactMap{ $0.id }
-                        } label: {
-                            Image(systemName: "checkmark.square")
+    @ViewBuilder
+    private var editControls: some View {
+        HStack {
+            Text("All: \(items.count)  Display: \(searchedItems.count) Selected: \(selection.count)")
+            Button {
+                selection = searchedItems.compactMap{ $0.id }
+            } label: {
+                Image(systemName: "checkmark.square")
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            if !selection.isEmpty {
+                Button {
+                    selection.removeAll()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.bordered)
+                .tint(.primary)
+            }
+        }
+        .listRowBackground(Color("NavigationEditColor"))
+        FlowLayout(alignment: .leading) {
+            Menu {
+                Button {
+                    importerPresented = true
+                } label: {
+                    Label("Documents", systemImage: "document.on.document")
+                }
+
+                Button {
+                    photoPresented = true
+                } label: {
+                    Label("Photo library", systemImage: "photo.on.rectangle.angled")
+                }
+            } label: {
+                if storage == "Local" {
+                    Text("\(Image("up").renderingMode(.template)) Import")
+                }
+                else {
+                    Text("\(Image("up").renderingMode(.template)) Upload")
+                }
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            .disabled(!selection.isEmpty || !editable)
+            .photosPicker(isPresented: $photoPresented, selection: $selectedPhotoItems)
+            .fileImporter(isPresented: $importerPresented, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
+                switch result {
+                case .success(let urls):
+                    Task {
+                        guard let service = await CloudFactory.shared.storageList.get(storage) else {
+                            return
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        if !selection.isEmpty {
-                            Button {
-                                selection.removeAll()
-                            } label: {
-                                Image(systemName: "trash")
+                        let passUrl = zip(urls, await checkDupName(testNames: urls.map({ $0.lastPathComponent }))).filter{ $0.1 }.map{ $0.0 }
+
+                        for url in passUrl {
+                            await uploadFile(url: url, service: service, parentId: fileid, scoped: true)
+                        }
+                        try? await Task.sleep(for: .seconds(5))
+                        await reload(true)
+                    }
+                case .failure(let error):
+                    print(error.localizedDescription)
+                }
+            }
+
+            Button {
+                importerForExportPresented.toggle()
+            } label: {
+                if storage == "Local" {
+                    Text("\(Image("import").renderingMode(.template)) Export")
+                }
+                else {
+                    Text("\(Image("import").renderingMode(.template)) Download")
+                }
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            .disabled(selection.isEmpty)
+            .fileImporter(isPresented: $importerForExportPresented, allowedContentTypes: [.folder]) { result in
+                switch result {
+                case .success(let url):
+                    let itemsData = items.filter { selection.contains($0.id ?? "") }
+                    guard url.startAccessingSecurityScopedResource() else {
+                        return
+                    }
+                    Task{
+                        defer {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                        await withTaskGroup(of: Void.self) { group in
+                            for itd in itemsData {
+                                if itd.folder {
+                                    continue
+                                }
+                                group.addTask {
+                                    guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: itd.id ?? "") else {
+                                        return
+                                    }
+                                    await downloadFile(targetFolder: url, item: item)
+                                }
                             }
-                            .buttonStyle(.bordered)
-                            .tint(.primary)
                         }
                     }
-                    .listRowBackground(Color("NavigationEditColor"))
-                    FlowLayout(alignment: .leading) {
-                        Menu {
-                            Button {
-                                importerPresented = true
-                            } label: {
-                                Label("Documents", systemImage: "document.on.document")
-                            }
+                case .failure(let error):
+                    print(error.localizedDescription)
+                }
+            }
 
-                            Button {
-                                photoPresented = true
-                            } label: {
-                                Label("Photo library", systemImage: "photo.on.rectangle.angled")
+            Button {
+                textNewName = ""
+                mkdirPopover = true
+            } label: {
+                Text("\(Image("newfolder").renderingMode(.template)) Folder")
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            .disabled(!selection.isEmpty || !editable)
+            .alert("New folder", isPresented: $mkdirPopover) {
+                TextField("new name", text: $textNewName)
+
+                Button("Cancel", role: .cancel) {
+                    mkdirPopover = false
+                }
+                if #available(iOS 26.0, *) {
+                    Button("OK", role: .confirm) {
+                        mkdirPopover = false
+                        let newname = textNewName
+                        isLoading = true
+                        Task {
+                            defer {
+                                isLoading = false
                             }
-                        } label: {
-                            if storage == "Local" {
-                                Text("\(Image("up").renderingMode(.template)) Import")
+                            await Task.yield()
+                            guard await checkDupName(testNames: [newname]).first ?? false else {
+                                return
                             }
-                            else {
-                                Text("\(Image("up").renderingMode(.template)) Upload")
+                            guard let service = await CloudFactory.shared.storageList.get(storage) else {
+                                return
                             }
+                            guard await service.mkdir(parentId: fileid, newname: newname) != nil else {
+                                return
+                            }
+                            try? await Task.sleep(for: .seconds(1))
+                            await reload(true)
+                        }
+                    }
+                } else {
+                    Button("OK") {
+                        mkdirPopover = false
+                        let newname = textNewName
+                        isLoading = true
+                        Task {
+                            defer {
+                                isLoading = false
+                            }
+                            await Task.yield()
+                            guard await checkDupName(testNames: [newname]).first ?? false else {
+                                return
+                            }
+                            guard let service = await CloudFactory.shared.storageList.get(storage) else {
+                                return
+                            }
+                            guard await service.mkdir(parentId: fileid, newname: newname) != nil else {
+                                return
+                            }
+                            try? await Task.sleep(for: .seconds(1))
+                            await reload(true)
+                        }
+                    }
+                }
+            }
+
+            Button {
+                guard let fid = selection.first else {
+                    return
+                }
+                guard let item = items.first(where: { $0.id == fid}) else {
+                    return
+                }
+                textNewName = item.name ?? ""
+                renamePopover = true
+            } label: {
+                Text("\(Image("rename").renderingMode(.template)) Rename")
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            .disabled(selection.count != 1 || !editable)
+            .alert("Rename", isPresented: $renamePopover) {
+                TextField("new name", text: $textNewName)
+
+                Button("Cancel", role: .cancel) {
+                    renamePopover = false
+                }
+                if #available(iOS 26.0, *) {
+                    Button("OK", role: .confirm) {
+                        renamePopover = false
+                        let newname = textNewName
+                        guard let fid = selection.first else {
+                            return
+                        }
+                        isLoading = true
+                        Task {
+                            guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
+                                return
+                            }
+                            defer {
+                                isLoading = false
+                            }
+                            await Task.yield()
+                            guard await checkDupName(testNames: [newname]).first ?? false else {
+                                return
+                            }
+                            guard await item.rename(newname: newname) != nil else {
+                                return
+                            }
+                            selection.removeAll()
+                            try? await Task.sleep(for: .seconds(1))
+                            await reload(true)
+                        }
+                    }
+                } else {
+                    Button("OK") {
+                        renamePopover = false
+                        let newname = textNewName
+                        guard let fid = selection.first else {
+                            return
+                        }
+                        isLoading = true
+                        Task {
+                            guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
+                                return
+                            }
+                            defer {
+                                isLoading = false
+                            }
+                            await Task.yield()
+                            guard await checkDupName(testNames: [newname]).first ?? false else {
+                                return
+                            }
+                            guard await item.rename(newname: newname) != nil else {
+                                return
+                            }
+                            selection.removeAll()
+                            try? await Task.sleep(for: .seconds(1))
+                            await reload(true)
+                        }
+                    }
+                }
+            }
+
+            Button {
+                guard let fid = selection.first else {
+                    return
+                }
+                guard let item = items.first(where: { $0.id == fid}) else {
+                    return
+                }
+                dateModified = item.mdate ?? Date()
+                chtimePopover = true
+            } label: {
+                Text("\(Image("time").renderingMode(.template)) Time")
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            .disabled(selection.count != 1 || !editable)
+            .popover(isPresented: $chtimePopover) {
+                VStack {
+                    DatePicker("modified time", selection: $dateModified, displayedComponents: [.date, .hourAndMinute])
+                        .padding()
+
+                    HStack {
+                        Spacer()
+                        Button("Cancel", role: .cancel) {
+                            chtimePopover = false
                         }
                         .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .disabled(!selection.isEmpty || !editable)
-                        .photosPicker(isPresented: $photoPresented, selection: $selectedPhotoItems)
-                        .fileImporter(isPresented: $importerPresented, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
-                            switch result {
-                            case .success(let urls):
-                                Task {
-                                    guard let service = await CloudFactory.shared.storageList.get(storage) else {
-                                        return
-                                    }
-                                    let passUrl = zip(urls, await checkDupName(testNames: urls.map({ $0.lastPathComponent }))).filter{ $0.1 }.map{ $0.0 }
-
-                                    for url in passUrl {
-                                        await uploadFile(url: url, service: service, parentId: fileid, scoped: true)
-                                    }
-                                    try? await Task.sleep(for: .seconds(5))
-                                    await reload(true)
-                                }
-                            case .failure(let error):
-                                print(error.localizedDescription)
-                            }
-                        }
-
-                        Button {
-                            importerForExportPresented.toggle()
-                        } label: {
-                            if storage == "Local" {
-                                Text("\(Image("import").renderingMode(.template)) Export")
-                            }
-                            else {
-                                Text("\(Image("import").renderingMode(.template)) Download")
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .disabled(selection.isEmpty)
-                        .fileImporter(isPresented: $importerForExportPresented, allowedContentTypes: [.folder]) { result in
-                            switch result {
-                            case .success(let url):
-                                let itemsData = items.filter { selection.contains($0.id ?? "") }
-                                guard url.startAccessingSecurityScopedResource() else {
+                        Spacer()
+                        if #available(iOS 26.0, *) {
+                            Button("OK", role: .confirm) {
+                                chtimePopover = false
+                                guard let fid = selection.first else {
                                     return
                                 }
-                                Task{
-                                    defer {
-                                        url.stopAccessingSecurityScopedResource()
-                                    }
-                                    await withTaskGroup(of: Void.self) { group in
-                                        for itd in itemsData {
-                                            if itd.folder {
-                                                continue
-                                            }
-                                            group.addTask {
-                                                guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: itd.id ?? "") else {
-                                                    return
-                                                }
-                                                await downloadFile(targetFolder: url, item: item)
-                                            }
-                                        }
-                                    }
-                                }
-                            case .failure(let error):
-                                print(error.localizedDescription)
-                            }
-                        }
-
-                        Button {
-                            textNewName = ""
-                            mkdirPopover = true
-                        } label: {
-                            Text("\(Image("newfolder").renderingMode(.template)) Folder")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .disabled(!selection.isEmpty || !editable)
-                        .alert("New folder", isPresented: $mkdirPopover) {
-                            TextField("new name", text: $textNewName)
-                            
-                            Button("Cancel", role: .cancel) {
-                                mkdirPopover = false
-                            }
-                            if #available(iOS 26.0, *) {
-                                Button("OK", role: .confirm) {
-                                    mkdirPopover = false
-                                    let newname = textNewName
-                                    isLoading = true
-                                    Task {
-                                        defer {
-                                            isLoading = false
-                                        }
-                                        await Task.yield()
-                                        guard await checkDupName(testNames: [newname]).first ?? false else {
-                                            return
-                                        }
-                                        guard let service = await CloudFactory.shared.storageList.get(storage) else {
-                                            return
-                                        }
-                                        guard await service.mkdir(parentId: fileid, newname: newname) != nil else {
-                                            return
-                                        }
-                                        try? await Task.sleep(for: .seconds(1))
-                                        await reload(true)
-                                    }
-                                }
-                            } else {
-                                Button("OK") {
-                                    mkdirPopover = false
-                                    let newname = textNewName
-                                    isLoading = true
-                                    Task {
-                                        defer {
-                                            isLoading = false
-                                        }
-                                        await Task.yield()
-                                        guard await checkDupName(testNames: [newname]).first ?? false else {
-                                            return
-                                        }
-                                        guard let service = await CloudFactory.shared.storageList.get(storage) else {
-                                            return
-                                        }
-                                        guard await service.mkdir(parentId: fileid, newname: newname) != nil else {
-                                            return
-                                        }
-                                        try? await Task.sleep(for: .seconds(1))
-                                        await reload(true)
-                                    }
-                                }
-                            }
-                        }
-
-                        Button {
-                            guard let fid = selection.first else {
-                                return
-                            }
-                            guard let item = items.first(where: { $0.id == fid}) else {
-                                return
-                            }
-                            textNewName = item.name ?? ""
-                            renamePopover = true
-                        } label: {
-                            Text("\(Image("rename").renderingMode(.template)) Rename")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .disabled(selection.count != 1 || !editable)
-                        .alert("Rename", isPresented: $renamePopover) {
-                            TextField("new name", text: $textNewName)
-                            
-                            Button("Cancel", role: .cancel) {
-                                renamePopover = false
-                            }
-                            if #available(iOS 26.0, *) {
-                                Button("OK", role: .confirm) {
-                                    renamePopover = false
-                                    let newname = textNewName
-                                    guard let fid = selection.first else {
-                                        return
-                                    }
-                                    isLoading = true
-                                    Task {
-                                        guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
-                                            return
-                                        }
-                                        defer {
-                                            isLoading = false
-                                        }
-                                        await Task.yield()
-                                        guard await checkDupName(testNames: [newname]).first ?? false else {
-                                            return
-                                        }
-                                        guard await item.rename(newname: newname) != nil else {
-                                            return
-                                        }
-                                        selection.removeAll()
-                                        try? await Task.sleep(for: .seconds(1))
-                                        await reload(true)
-                                    }
-                                }
-                            } else {
-                                Button("OK") {
-                                    renamePopover = false
-                                    let newname = textNewName
-                                    guard let fid = selection.first else {
-                                        return
-                                    }
-                                    isLoading = true
-                                    Task {
-                                        guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
-                                            return
-                                        }
-                                        defer {
-                                            isLoading = false
-                                        }
-                                        await Task.yield()
-                                        guard await checkDupName(testNames: [newname]).first ?? false else {
-                                            return
-                                        }
-                                        guard await item.rename(newname: newname) != nil else {
-                                            return
-                                        }
-                                        selection.removeAll()
-                                        try? await Task.sleep(for: .seconds(1))
-                                        await reload(true)
-                                    }
-                                }
-                            }
-                        }
-
-                        Button {
-                            guard let fid = selection.first else {
-                                return
-                            }
-                            guard let item = items.first(where: { $0.id == fid}) else {
-                                return
-                            }
-                            dateModified = item.mdate ?? Date()
-                            chtimePopover = true
-                        } label: {
-                            Text("\(Image("time").renderingMode(.template)) Time")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .disabled(selection.count != 1 || !editable)
-                        .popover(isPresented: $chtimePopover) {
-                            VStack {
-                                DatePicker("modified time", selection: $dateModified, displayedComponents: [.date, .hourAndMinute])
-                                    .padding()
-
-                                HStack {
-                                    Spacer()
-                                    Button("Cancel", role: .cancel) {
-                                        chtimePopover = false
-                                    }
-                                    .buttonStyle(.bordered)
-                                    Spacer()
-                                    if #available(iOS 26.0, *) {
-                                        Button("OK", role: .confirm) {
-                                            chtimePopover = false
-                                            guard let fid = selection.first else {
-                                                return
-                                            }
-                                            isLoading = true
-                                            Task {
-                                                guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
-                                                    return
-                                                }
-                                                defer {
-                                                    isLoading = false
-                                                }
-                                                await Task.yield()
-                                                guard await item.changetime(newdate: dateModified) != nil else {
-                                                    return
-                                                }
-                                                selection.removeAll()
-                                                try? await Task.sleep(for: .seconds(1))
-                                                await reload(true)
-                                            }
-                                        }
-                                        .buttonStyle(.bordered)
-                                    } else {
-                                        Button("OK") {
-                                            chtimePopover = false
-                                            guard let fid = selection.first else {
-                                                return
-                                            }
-                                            isLoading = true
-                                            Task {
-                                                guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
-                                                    return
-                                                }
-                                                defer {
-                                                    isLoading = false
-                                                }
-                                                await Task.yield()
-                                                guard await item.changetime(newdate: dateModified) != nil else {
-                                                    return
-                                                }
-                                                selection.removeAll()
-                                                try? await Task.sleep(for: .seconds(1))
-                                                await reload(true)
-                                            }
-                                        }
-                                        .buttonStyle(.bordered)
-                                    }
-                                    Spacer()
-                                }
-                                .padding()
-                            }
-                            .padding()
-                            .presentationCompactAdaptation(.popover)
-                        }
-                        
-                        Button {
-                            Task {
-                                await Task.yield()
-                                let ret = await withCheckedContinuation { continuation in
-                                    env.storage = nil
-                                    env.fileid = nil
-                                    env.continuation = continuation
-                                    env.path.append(HomePath.select(storage: "", fileid: ""))
-                                }
-                                guard ret, let toStorage = env.storage, let toFileId = env.fileid else {
-                                    return
-                                }
-                                isLoading = true
-                                progStr = "\(0) / \(selection.count)"
-                                await Task.yield()
-                                defer {
-                                    isLoading = false
-                                    progStr = ""
-                                }
-                                guard let toRemoteStrage = await CloudFactory.shared.storageList.get(toStorage) else {
-                                    return
-                                }
-                                let maxConcurrentTasks = 5
-                                await withTaskGroup(of: Void.self) { group in
-                                    for (index,fid) in selection.enumerated() {
-                                        isLoading = true
-                                        progStr = "\(index) / \(selection.count)"
-                                        if index >= maxConcurrentTasks {
-                                            await group.next()
-                                            await Task.yield()
-                                        }
-                                        group.addTask {
-                                            guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
-                                                return
-                                            }
-                                            if toStorage == storage, await toRemoteStrage.targetIsMovable(srcFileId: fid, dstFileId: toFileId) {
-                                                guard await item.move(toParentId: toFileId) != nil else {
-                                                    return
-                                                }
-                                            }
-                                            else {
-                                                await downloadAndUpload(item: item, service: toRemoteStrage, parentId: toFileId)
-                                            }
-                                        }
-                                    }
-                                    await group.waitForAll()
-                                }
-                                isLoading = true
-                                progStr = "\(selection.count) / \(selection.count)"
-                                try? await Task.sleep(for: .seconds(1))
-                                selection.removeAll()
-                                await reload(true)
-                            }
-                        } label: {
-                            Text("\(Image("move").renderingMode(.template)) Move")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .disabled(selection.isEmpty || !editable)
-
-                        Button {
-                            deleteAlert = true
-                        } label: {
-                            Text("\(Image("delete").renderingMode(.template)) Delete")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.red)
-                        .disabled(selection.isEmpty || !editable)
-                        .alert("Delete", isPresented: $deleteAlert) {
-                            Button("Delete", role: .destructive) {
-                                deleteAlert = false
-
                                 isLoading = true
                                 Task {
+                                    guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
+                                        return
+                                    }
                                     defer {
                                         isLoading = false
                                     }
                                     await Task.yield()
-                                    for fid in selection {
-                                        guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
-                                            return
-                                        }
-                                        guard await item.delete() else {
-                                            continue
-                                        }
+                                    guard await item.changetime(newdate: dateModified) != nil else {
+                                        return
                                     }
                                     selection.removeAll()
                                     try? await Task.sleep(for: .seconds(1))
                                     await reload(true)
                                 }
                             }
-                            Button("Cancel", role: .cancel) {
-                                deleteAlert = false
-                            }
-                        } message: {
-                            Text("\(selection.count) item(s) will be deleted.")
-                        }
-                    }
-                    .listRowBackground(Color("NavigationEditColor"))
-                    FlowLayout(alignment: .leading) {
-                        Button {
-                            isLoading = true
-                            Task {
-                                defer {
-                                    isLoading = false
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button("OK") {
+                                chtimePopover = false
+                                guard let fid = selection.first else {
+                                    return
                                 }
-                                await Task.yield()
-                                await withTaskGroup { group in
-                                    for fid in selection {
-                                        group.addTask {
-                                            guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
-                                                return
-                                            }
-                                            await CloudFactory.shared.mark.setMark(storage: item.storage, targetID: item.id, parentID: item.path, position: nil)
-                                        }
-                                    }
-                                }
-                                selection.removeAll()
-                                try? await Task.sleep(for: .seconds(1))
-                                await reload(true)
-                            }
-                        } label: {
-                            Text("\(Image(systemName: "eraser")) Unmark")
-                                .padding(4)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .disabled(selection.isEmpty || !UserDefaults.standard.bool(forKey: "savePlaypos"))
-
-                        Button {
-                            isLoading = true
-                            Task {
-                                defer {
-                                    isLoading = false
-                                }
-                                await Task.yield()
-                                var playList = await CloudFactory.shared.data.getPlaylist(playlistName: "default")
-                                for fid in selection {
+                                isLoading = true
+                                Task {
                                     guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
-                                        continue
+                                        return
                                     }
-                                    if item.isFolder { continue }
-                                    playList.append((item.storage, item.id, item.path, UUID().uuidString))
+                                    defer {
+                                        isLoading = false
+                                    }
+                                    await Task.yield()
+                                    guard await item.changetime(newdate: dateModified) != nil else {
+                                        return
+                                    }
+                                    selection.removeAll()
+                                    try? await Task.sleep(for: .seconds(1))
+                                    await reload(true)
                                 }
-                                await CloudFactory.shared.data.setPlaylist(playlistName: "default", items: playList)
-                                selection.removeAll()
-                                try? await Task.sleep(for: .seconds(1))
-                                await reload(true)
                             }
-                        } label: {
-                            Text("\(Image("addplay").renderingMode(.template)) Add playlist")
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .disabled(selection.isEmpty)
+                        Spacer()
                     }
-                    .listRowBackground(Color("NavigationEditColor"))
-                } header: {
-                    Text(title)
+                    .padding()
                 }
-                ForEach(searchedItems, id: \.thumbnailRowID) { item in
-                    if item.id != nil {
-                        if item.folder {
-                            HStack {
-                                if selection.contains(item.id ?? "") {
-                                    Image(systemName: "checkmark.square.fill")
+                .padding()
+                .presentationCompactAdaptation(.popover)
+            }
+
+            Button {
+                Task {
+                    await Task.yield()
+                    let ret = await withCheckedContinuation { continuation in
+                        env.storage = nil
+                        env.fileid = nil
+                        env.continuation = continuation
+                        env.path.append(HomePath.select(storage: "", fileid: ""))
+                    }
+                    guard ret, let toStorage = env.storage, let toFileId = env.fileid else {
+                        return
+                    }
+                    isLoading = true
+                    progStr = "\(0) / \(selection.count)"
+                    await Task.yield()
+                    defer {
+                        isLoading = false
+                        progStr = ""
+                    }
+                    guard let toRemoteStrage = await CloudFactory.shared.storageList.get(toStorage) else {
+                        return
+                    }
+                    let maxConcurrentTasks = 5
+                    await withTaskGroup(of: Void.self) { group in
+                        for (index,fid) in selection.enumerated() {
+                            isLoading = true
+                            progStr = "\(index) / \(selection.count)"
+                            if index >= maxConcurrentTasks {
+                                await group.next()
+                                await Task.yield()
+                            }
+                            group.addTask {
+                                guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
+                                    return
                                 }
-                                else {
-                                    Image(systemName: "square")
-                                }
-                                HStack {
-                                    FileThumbnailView(item: item)
-                                    VStack(alignment: .leading) {
-                                        Text(verbatim: item.name ?? "")
-                                            .font(.headline)
-                                        if let mdate = item.mdate {
-                                            Text(verbatim: "\(f.string(from: mdate))\tfolder")
-                                                .font(.footnote)
-                                        }
-                                        else {
-                                            Text(verbatim: "\tfolder")
-                                                .font(.footnote)
-                                        }
+                                if toStorage == storage, await toRemoteStrage.targetIsMovable(srcFileId: fid, dstFileId: toFileId) {
+                                    guard await item.move(toParentId: toFileId) != nil else {
+                                        return
                                     }
                                 }
-                            }
-                            .onTapGesture {
-                                if selection.contains(item.id ?? "") {
-                                    selection.remove(at: selection.firstIndex(of: item.id ?? "")!)
-                                }
                                 else {
-                                    selection.append(item.id ?? "")
+                                    await downloadAndUpload(item: item, service: toRemoteStrage, parentId: toFileId)
                                 }
                             }
-                            .listRowBackground(Color("FolderColor"))
                         }
-                        else {
-                            HStack {
-                                if selection.contains(item.id ?? "") {
-                                    Image(systemName: "checkmark.square.fill")
-                                }
-                                else {
-                                    Image(systemName: "square")
-                                }
-                                HStack {
-                                    FileThumbnailView(item: item)
-                                    VStack(alignment: .leading) {
-                                        Text(verbatim: item.name ?? "")
-                                            .font(.headline)
-                                        if let mdate = item.mdate {
-                                            Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                                .font(.footnote)
-                                        }
-                                        else {
-                                            Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                                .font(.footnote)
-                                        }
-                                    }
-                                }
+                        await group.waitForAll()
+                    }
+                    isLoading = true
+                    progStr = "\(selection.count) / \(selection.count)"
+                    try? await Task.sleep(for: .seconds(1))
+                    selection.removeAll()
+                    await reload(true)
+                }
+            } label: {
+                Text("\(Image("move").renderingMode(.template)) Move")
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            .disabled(selection.isEmpty || !editable)
+
+            Button {
+                deleteAlert = true
+            } label: {
+                Text("\(Image("delete").renderingMode(.template)) Delete")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .disabled(selection.isEmpty || !editable)
+            .alert("Delete", isPresented: $deleteAlert) {
+                Button("Delete", role: .destructive) {
+                    deleteAlert = false
+
+                    isLoading = true
+                    Task {
+                        defer {
+                            isLoading = false
+                        }
+                        await Task.yield()
+                        for fid in selection {
+                            guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
+                                return
                             }
-                            .onTapGesture {
-                                if selection.contains(item.id ?? "") {
-                                    selection.remove(at: selection.firstIndex(of: item.id ?? "")!)
+                            guard await item.delete() else {
+                                continue
+                            }
+                        }
+                        selection.removeAll()
+                        try? await Task.sleep(for: .seconds(1))
+                        await reload(true)
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    deleteAlert = false
+                }
+            } message: {
+                Text("\(selection.count) item(s) will be deleted.")
+            }
+        }
+        .listRowBackground(Color("NavigationEditColor"))
+        FlowLayout(alignment: .leading) {
+            Button {
+                isLoading = true
+                Task {
+                    defer {
+                        isLoading = false
+                    }
+                    await Task.yield()
+                    await withTaskGroup { group in
+                        for fid in selection {
+                            group.addTask {
+                                guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
+                                    return
                                 }
-                                else {
-                                    selection.append(item.id ?? "")
-                                }
+                                await CloudFactory.shared.mark.setMark(storage: item.storage, targetID: item.id, parentID: item.path, position: nil)
                             }
                         }
                     }
+                    selection.removeAll()
+                    try? await Task.sleep(for: .seconds(1))
+                    await reload(true)
+                }
+            } label: {
+                Text("\(Image(systemName: "eraser")) Unmark")
+                    .padding(4)
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            .disabled(selection.isEmpty || !UserDefaults.standard.bool(forKey: "savePlaypos"))
+
+            Button {
+                isLoading = true
+                Task {
+                    defer {
+                        isLoading = false
+                    }
+                    await Task.yield()
+                    var playList = await CloudFactory.shared.data.getPlaylist(playlistName: "default")
+                    for fid in selection {
+                        guard let item = await CloudFactory.shared.storageList.get(storage)?.get(fileId: fid) else {
+                            continue
+                        }
+                        if item.isFolder { continue }
+                        playList.append((item.storage, item.id, item.path, UUID().uuidString))
+                    }
+                    await CloudFactory.shared.data.setPlaylist(playlistName: "default", items: playList)
+                    selection.removeAll()
+                    try? await Task.sleep(for: .seconds(1))
+                    await reload(true)
+                }
+            } label: {
+                Text("\(Image("addplay").renderingMode(.template)) Add playlist")
+            }
+            .buttonStyle(.bordered)
+            .tint(.primary)
+            .disabled(selection.isEmpty)
+        }
+        .listRowBackground(Color("NavigationEditColor"))
+    }
+
+    private var listContent: some View {
+        List {
+            Section {
+                editControls
+            } header: {
+                Text(title)
+            }
+            ForEach(searchedItems, id: \.thumbnailRowID) { item in
+                if item.id != nil {
+                    if item.folder {
+                        HStack {
+                            if selection.contains(item.id ?? "") {
+                                Image(systemName: "checkmark.square.fill")
+                            }
+                            else {
+                                Image(systemName: "square")
+                            }
+                            HStack {
+                                FileThumbnailView(item: item)
+                                VStack(alignment: .leading) {
+                                    Text(verbatim: item.name ?? "")
+                                        .font(.headline)
+                                    if let mdate = item.mdate {
+                                        Text(verbatim: "\(f.string(from: mdate))\tfolder")
+                                            .font(.footnote)
+                                    }
+                                    else {
+                                        Text(verbatim: "\tfolder")
+                                            .font(.footnote)
+                                    }
+                                }
+                            }
+                        }
+                        .onTapGesture {
+                            if selection.contains(item.id ?? "") {
+                                selection.remove(at: selection.firstIndex(of: item.id ?? "")!)
+                            }
+                            else {
+                                selection.append(item.id ?? "")
+                            }
+                        }
+                        .listRowBackground(Color("FolderColor"))
+                    }
+                    else {
+                        HStack {
+                            if selection.contains(item.id ?? "") {
+                                Image(systemName: "checkmark.square.fill")
+                            }
+                            else {
+                                Image(systemName: "square")
+                            }
+                            HStack {
+                                FileThumbnailView(item: item)
+                                VStack(alignment: .leading) {
+                                    Text(verbatim: item.name ?? "")
+                                        .font(.headline)
+                                    if let mdate = item.mdate {
+                                        Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                            .font(.footnote)
+                                    }
+                                    else {
+                                        Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                            .font(.footnote)
+                                    }
+                                }
+                            }
+                        }
+                        .onTapGesture {
+                            if selection.contains(item.id ?? "") {
+                                selection.remove(at: selection.firstIndex(of: item.id ?? "")!)
+                            }
+                            else {
+                                selection.append(item.id ?? "")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var gridContent: some View {
+        FileBrowserGrid(size: presentation.gridSize, title: title, header: {
+            VStack(alignment: .leading, spacing: 12) { editControls }
+        }) {
+            ForEach(searchedItems, id: \.thumbnailRowID) { item in
+                if let id = item.id {
+                    Button {
+                        if let index = selection.firstIndex(of: id) {
+                            selection.remove(at: index)
+                        } else {
+                            selection.append(id)
+                        }
+                    } label: {
+                        FileGridCell(item: item, selected: selection.contains(id))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Group {
+                if presentation.layout == .grid {
+                    gridContent
+                } else {
+                    listContent
                 }
             }
             .scrollContentBackground(.hidden)
@@ -888,6 +925,7 @@ struct EditItemsUIView: View {
         }
         .navigationTitle(title)
         .toolbar {
+            ToolbarItem { FileBrowserDisplayMenu() }
             ToolbarItem() {
                 Menu {
                     sortButton(key: "Name A → Z", idx: 0)

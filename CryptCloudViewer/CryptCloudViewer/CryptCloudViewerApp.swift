@@ -98,6 +98,7 @@ struct CryptCloudViewerApp: App {
         await CloudFactory.shared.removeAllAuth()
         UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
         ThumbnailSettings.shared.reset()
+        FileBrowserSettings.shared.reset()
         await CloudFactory.shared.cache.deleteAllCache()
         await CloudFactory.shared.initializeDatabase()
 

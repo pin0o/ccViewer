@@ -40,6 +40,7 @@ struct PlaylistUIView: View {
         searchText.isEmpty ? ids : ids.filter { items[$0]?.name?.localizedStandardContains(searchText) ?? false }
     }
     @State private var itemMark: [String: Double] = [:]
+    private let presentation = FileBrowserSettings.shared
     @State private var searchText: String = ""
     @State var sortOrder = UserDefaults.standard.integer(forKey: "ItemSortOrder") {
         didSet {
@@ -103,11 +104,17 @@ struct PlaylistUIView: View {
     }
     
     func rowReplace(_ from: IndexSet, _ to: Int) {
+        let visible = searchedItems
+        guard !from.isEmpty, to >= 0, to <= visible.count,
+              from.allSatisfy({ visible.indices.contains($0) }) else { return }
         var fixFrom: IndexSet = []
-        for f in from {
-            fixFrom.insert(ids.firstIndex(of: searchedItems[f])!)
+        for index in from {
+            guard let fullIndex = ids.firstIndex(of: visible[index]) else { return }
+            fixFrom.insert(fullIndex)
         }
-        let fixTo = ids.firstIndex(of: searchedItems[to])!
+        let destination = to < visible.count ? ids.firstIndex(of: visible[to]) :
+            visible.last.flatMap { ids.firstIndex(of: $0) }.map { $0 + 1 }
+        guard let fixTo = destination else { return }
         ids.move(fromOffsets: fixFrom, toOffset: fixTo)
         var playList: [(String, String, String, String)] = []
         for id in ids {
@@ -130,6 +137,107 @@ struct PlaylistUIView: View {
         }
         Task {
             await CloudFactory.shared.data.setPlaylist(playlistName: playlistName, items: playList)
+        }
+    }
+
+    private var listContent: some View {
+        List {
+            Section {
+                ForEach(searchedItems, id: \.self) { id in
+                    HStack {
+                        if let item = items[id] { FileThumbnailView(item: item) }
+                        VStack(alignment: .leading) {
+                            Text(verbatim: items[id]?.name ?? "")
+                                .font(.headline)
+                            if let mdate = items[id]?.mdate {
+                                Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(items[id]!.size))) (\(formatter.string(from: items[id]!.size as NSNumber) ?? "0") bytes) \t\(items[id]?.subinfo ?? "")")
+                                    .font(.footnote)
+                            }
+                            else {
+                                Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(items[id]!.size))) (\(formatter.string(from: items[id]!.size as NSNumber) ?? "0") bytes) \t\(items[id]?.subinfo ?? "")")
+                                    .font(.footnote)
+                            }
+                        }
+                    }
+                    .draggable(PlayItem(items[id]!)) {
+                        Image(systemName: "music.note")
+                            .font(.largeTitle)
+                    }
+                    .onTapGesture {
+                        if Converter.IsCasting() {
+                            isLoading = true
+                            Task {
+                                defer {
+                                    isLoading = false
+                                }
+                                await playConverter(storages: [items[id]?.storage ?? ""], fileids: [items[id]?.id ?? ""], playlist: true)
+                            }
+                        }
+                        else {
+                            env.path.append(HomePath.open(storages: [items[id]?.storage ?? ""], fileids: [items[id]?.id ?? ""], playlist: true))
+                        }
+                    }
+                }
+                .onMove(perform: rowReplace)
+                .onDelete(perform: rowRemove)
+            }
+        }
+    }
+
+    private var gridContent: some View {
+        FileBrowserGrid(size: presentation.gridSize) {
+            ForEach(searchedItems, id: \.self) { id in
+                if let item = items[id] {
+                    Button { playGridItem(item) } label: {
+                        FileGridCell(item: item)
+                    }
+                    .buttonStyle(.plain)
+                    .draggable(PlayItem(item)) {
+                        Image(systemName: "music.note").font(.largeTitle)
+                    }
+                    .contextMenu {
+                        if let index = searchedItems.firstIndex(of: id) {
+                            Button {
+                                moveGridItem(id, direction: -1)
+                            } label: {
+                                Label("Move earlier", systemImage: "arrow.up")
+                            }
+                            .disabled(index == 0)
+                            Button {
+                                moveGridItem(id, direction: 1)
+                            } label: {
+                                Label("Move later", systemImage: "arrow.down")
+                            }
+                            .disabled(index + 1 == searchedItems.count)
+                            Button(role: .destructive) {
+                                if let current = searchedItems.firstIndex(of: id) {
+                                    rowRemove(from: IndexSet(integer: current))
+                                }
+                            } label: {
+                                Label("Remove from playlist", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func moveGridItem(_ id: String, direction: Int) {
+        guard let current = searchedItems.firstIndex(of: id),
+              searchedItems.indices.contains(current + direction) else { return }
+        rowReplace(IndexSet(integer: current), direction > 0 ? current + 2 : current - 1)
+    }
+
+    private func playGridItem(_ item: RemoteDataDTO) {
+        if Converter.IsCasting() {
+            isLoading = true
+            Task {
+                defer { isLoading = false }
+                await playConverter(storages: [item.storage ?? ""], fileids: [item.id ?? ""], playlist: true)
+            }
+        } else {
+            env.path.append(HomePath.open(storages: [item.storage ?? ""], fileids: [item.id ?? ""], playlist: true))
         }
     }
 
@@ -228,45 +336,11 @@ struct PlaylistUIView: View {
                     }
                 }
                 .padding()
-                List {
-                    Section {
-                        ForEach(searchedItems, id: \.self) { id in
-                            HStack {
-                                if let item = items[id] { FileThumbnailView(item: item) }
-                                VStack(alignment: .leading) {
-                                    Text(verbatim: items[id]?.name ?? "")
-                                        .font(.headline)
-                                    if let mdate = items[id]?.mdate {
-                                        Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(items[id]!.size))) (\(formatter.string(from: items[id]!.size as NSNumber) ?? "0") bytes) \t\(items[id]?.subinfo ?? "")")
-                                            .font(.footnote)
-                                    }
-                                    else {
-                                        Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(items[id]!.size))) (\(formatter.string(from: items[id]!.size as NSNumber) ?? "0") bytes) \t\(items[id]?.subinfo ?? "")")
-                                            .font(.footnote)
-                                    }
-                                }
-                            }
-                            .draggable(PlayItem(items[id]!)) {
-                                Image(systemName: "music.note")
-                                    .font(.largeTitle)
-                            }
-                            .onTapGesture {
-                                if Converter.IsCasting() {
-                                    isLoading = true
-                                    Task {
-                                        defer {
-                                            isLoading = false
-                                        }
-                                        await playConverter(storages: [items[id]?.storage ?? ""], fileids: [items[id]?.id ?? ""], playlist: true)
-                                    }
-                                }
-                                else {
-                                    env.path.append(HomePath.open(storages: [items[id]?.storage ?? ""], fileids: [items[id]?.id ?? ""], playlist: true))
-                                }
-                            }
-                        }
-                        .onMove(perform: rowReplace)
-                        .onDelete(perform: rowRemove)
+                Group {
+                    if presentation.layout == .grid {
+                        gridContent
+                    } else {
+                        listContent
                     }
                 }
                 .searchable(text: $searchText)
@@ -563,6 +637,7 @@ struct PlaylistUIView: View {
         }
         .navigationTitle("")
         .toolbar {
+            ToolbarItem { FileBrowserDisplayMenu() }
             ToolbarItem() {
                 Button {
                     isNewName.toggle()

@@ -19,6 +19,7 @@ struct SelectItemsUIView: View {
     private var searchedItems: [RemoteDataDTO] {
         searchText.isEmpty ? items : items.filter { $0.name?.localizedStandardContains(searchText) ?? false }
     }
+    private let presentation = FileBrowserSettings.shared
     @State private var searchText: String = ""
     @State var sortOrder = UserDefaults.standard.integer(forKey: "ItemSortOrder") {
         didSet {
@@ -102,6 +103,65 @@ struct SelectItemsUIView: View {
     @State var storageImage: [String: UIImage] = [:]
     @State var cancellables = Set<AnyCancellable>()
 
+    private var listContent: some View {
+        List {
+            ForEach(searchedItems, id: \.thumbnailRowID) { item in
+                if item.folder {
+                    NavigationLink(value: HomePath.select(storage: storage, fileid: item.id ?? "")) {
+                        HStack {
+                            FileThumbnailView(item: item)
+                            VStack(alignment: .leading) {
+                                Text(verbatim: item.name ?? "")
+                                    .font(.headline)
+                                if let mdate = item.mdate {
+                                    Text(verbatim: "\(f.string(from: mdate))\tfolder")
+                                        .font(.footnote)
+                                }
+                                else {
+                                    Text(verbatim: "\tfolder")
+                                        .font(.footnote)
+                                }
+                            }
+                        }
+                    }
+                    .listRowBackground(Color("FolderColor"))
+                }
+                else {
+                    HStack {
+                        FileThumbnailView(item: item)
+                        VStack(alignment: .leading) {
+                            Text(verbatim: item.name ?? "")
+                                .font(.headline)
+                            if let mdate = item.mdate {
+                                Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                    .font(.footnote)
+                            }
+                            else {
+                                Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
+                                    .font(.footnote)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var gridContent: some View {
+        FileBrowserGrid(size: presentation.gridSize) {
+            ForEach(searchedItems, id: \.thumbnailRowID) { item in
+                if item.folder {
+                    NavigationLink(value: HomePath.select(storage: storage, fileid: item.id ?? "")) {
+                        FileGridCell(item: item)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    FileGridCell(item: item).opacity(0.6)
+                }
+            }
+        }
+    }
+
     var body: some View {
         ZStack {
             if storage == "" {
@@ -136,45 +196,11 @@ struct SelectItemsUIView: View {
                 }
             }
             else {
-                List {
-                    ForEach(searchedItems, id: \.thumbnailRowID) { item in
-                        if item.folder {
-                            NavigationLink(value: HomePath.select(storage: storage, fileid: item.id ?? "")) {
-                                HStack {
-                                    FileThumbnailView(item: item)
-                                    VStack(alignment: .leading) {
-                                        Text(verbatim: item.name ?? "")
-                                            .font(.headline)
-                                        if let mdate = item.mdate {
-                                            Text(verbatim: "\(f.string(from: mdate))\tfolder")
-                                                .font(.footnote)
-                                        }
-                                        else {
-                                            Text(verbatim: "\tfolder")
-                                                .font(.footnote)
-                                        }
-                                    }
-                                }
-                            }
-                            .listRowBackground(Color("FolderColor"))
-                        }
-                        else {
-                            HStack {
-                                FileThumbnailView(item: item)
-                                VStack(alignment: .leading) {
-                                    Text(verbatim: item.name ?? "")
-                                        .font(.headline)
-                                    if let mdate = item.mdate {
-                                        Text(verbatim: "\(f.string(from: mdate))\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                            .font(.footnote)
-                                    }
-                                    else {
-                                        Text(verbatim: "\t\(formatter2.string(fromByteCount: Int64(item.size))) (\(formatter.string(from: item.size as NSNumber) ?? "0") bytes) \t\(item.subinfo ?? "")")
-                                            .font(.footnote)
-                                    }
-                                }
-                            }
-                        }
+                Group {
+                    if presentation.layout == .grid {
+                        gridContent
+                    } else {
+                        listContent
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -193,6 +219,7 @@ struct SelectItemsUIView: View {
                     await reload()
                 }
                 .toolbar {
+                    ToolbarItem { FileBrowserDisplayMenu() }
                     ToolbarItem(placement: .cancellationAction) {
                         Button(role: .cancel) {
                             while let last = env.path.last, case .select(_, _) = last {
