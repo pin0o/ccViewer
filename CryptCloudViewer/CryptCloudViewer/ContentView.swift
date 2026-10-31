@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import RemoteCloud
 import Combine
 import AVFoundation
 
@@ -18,6 +19,7 @@ import AVFoundation
     var isPassworded: Bool {
         func getKeyChain(key: String) -> String? {
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                      kSecAttrService as String: PoCAppIdentity.keychainService,
                                       kSecAttrAccount as String: key,
                                       kSecReturnData as String: kCFBooleanTrue as Any]
             

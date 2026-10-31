@@ -1,15 +1,15 @@
-# CryptCloudViewer
-iOSアプリ"CryptCloudViewer"のソースコードのレポジトリです。
-
-アプリはこちらからダウンロードできます。
-https://itunes.apple.com/jp/app/cryptcloudviewer/id1458528598
+# CryptCloudViewer PoC
+[CryptCloudViewer](https://github.com/lithium0003/ccViewer) を元にした実験用アプリです。
+Bundle ID は `io.github.pin0o.ccViewerPoC` とし、元アプリとは別にインストールします。
+AltStore 用の未署名 IPA と、PoC 専用の iCloud・OAuth・署名設定については
+[BUILD.md](BUILD.md) を参照してください。
 
 ## 説明
 暗号化したまま閲覧できるクラウドビューワです。端末のフォルダに加えて、クラウドストレージ: Google Drive, Dropbox, OneDrive, pCloud, Filen.io, S3, WebDAV, SFTP, Samba、暗号化: rclone, CarotDAV, Cryptomator, gocryptfs に対応しています。iPhoneで再生できるメディアファイルの他、ソフトウエアデコードによりmpeg2等の動画も再生できます。クラウドストレージのファイルを編集することも可能です(アップロード、フォルダ作成、リネーム、移動、削除)。また、端末で自動的にエンコードを行い、Chromecastでデバイスに送信することが可能です。
 
 Ver 1.4.0より、Chromecastをサポートしました。ただしキャスト中は、アプリを切り替えたり画面ロックを行うことができません。
 
-Ver 2.0.0より、サポートOSをiOS26以降にしました。設定でONにすることにより、バックグラウンドでダウンロード、アップロード、キャストが可能になりました。
+元アプリの Ver 2.0.0 では iOS 26 向けに書き直されています。この PoC の最低対応 OS は iOS 17.6 です。iOS 26 が必要な機能は、対応する OS 上で利用します。設定で ON にすることにより、バックグラウンドでダウンロード、アップロード、キャストが可能です。
 
 ## video
 [![YouTube](https://img.youtube.com/vi/sCPPcoqAR3g/maxresdefault.jpg)](https://www.youtube.com/watch?v=sCPPcoqAR3g)
@@ -41,7 +41,7 @@ cd work
 ```
 
 ### Xcodeでのコンパイル
-1. workspace "ccViewer.xcworkspace" を開きます。
+1. workspace "CryptCloudViewer.xcworkspace" を開きます。
 2. scheme "CryptCloudViewer" を選択し build します。
 
 実際に使用したい場合は、以下のファイルを修正し、

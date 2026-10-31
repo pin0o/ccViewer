@@ -494,7 +494,7 @@ public class CryptGocryptfs: ChildStorage {
             }
 
             let confDict: [String: Any] = [
-                "Creator": "CryptCloudViewer 1.0",
+                "Creator": "CryptCloudViewer PoC 1.0",
                 "EncryptedKey": encryptedKeyBase64,
                 "ScryptObject": [
                     "Salt": saltBase64,

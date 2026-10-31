@@ -619,7 +619,7 @@ extension SftpConnection {
         defer { if let p = pubKeyChar { ssh_string_free_char(p) } }
         let pubBase64Str = String(cString: pubKeyChar!)
         
-        let publicKeyOpenSSH = "ssh-ed25519 \(pubBase64Str) generated-by-CryptCloudViewer"
+        let publicKeyOpenSSH = "ssh-ed25519 \(pubBase64Str) generated-by-CryptCloudViewerPoC"
         
         return (privateKeyStr, publicKeyOpenSSH)
     }

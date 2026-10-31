@@ -25,11 +25,29 @@ xcodebuild archive \
 
 task_app="$task_build_dir/CryptCloudViewer.xcarchive/Products/Applications/CryptCloudViewer.app"
 test -d "$task_app"
+# Fail before packaging if this experimental build retains upstream identities.
+python3 - "$task_app" <<'PY'
+import pathlib, plistlib, sys
+app = pathlib.Path(sys.argv[1])
+expected = {'': 'io.github.pin0o.ccViewerPoC',
+            'RemoteCloud': 'io.github.pin0o.RemoteCloudPoC',
+            'ffplayer': 'io.github.pin0o.ffplayerPoC',
+            'ffconverter': 'io.github.pin0o.ffconverterPoC'}
+for framework, identifier in expected.items():
+    bundle = app / 'Frameworks' / (framework + '.framework') if framework else app
+    with (bundle / 'Info.plist').open('rb') as stream:
+        info = plistlib.load(stream)
+    if info.get('CFBundleIdentifier') != identifier:
+        raise SystemExit(f'Unexpected PoC identity in {bundle}: {info.get("CFBundleIdentifier")}')
+    if not framework and info.get('CFBundleDisplayName') != 'CryptCloudViewer PoC':
+        raise SystemExit('PoC display name is missing')
+print('PoC app and framework identities verified')
+PY
 task_payload="$task_build_dir/package"
 rm -rf "$task_payload"
 mkdir -p "$task_payload/Payload"
 ditto "$task_app" "$task_payload/Payload/CryptCloudViewer.app"
-rm -f "$task_build_dir/CryptCloudViewer-unsigned.ipa"
-(cd "$task_payload" && /usr/bin/zip -qry "$task_build_dir/CryptCloudViewer-unsigned.ipa" Payload)
-unzip -tq "$task_build_dir/CryptCloudViewer-unsigned.ipa"
-printf 'Unsigned IPA: %s\n' "$task_build_dir/CryptCloudViewer-unsigned.ipa"
+rm -f "$task_build_dir/CryptCloudViewerPoC-unsigned.ipa"
+(cd "$task_payload" && /usr/bin/zip -qry "$task_build_dir/CryptCloudViewerPoC-unsigned.ipa" Payload)
+unzip -tq "$task_build_dir/CryptCloudViewerPoC-unsigned.ipa"
+printf 'Unsigned IPA: %s\n' "$task_build_dir/CryptCloudViewerPoC-unsigned.ipa"

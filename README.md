@@ -1,13 +1,17 @@
-# CryptCloudViewer
-This repository is source code of iOS app "CryptCloudViewer"
-https://itunes.apple.com/us/app/cryptcloudviewer/id1458528598
+# CryptCloudViewer PoC
+An experimental fork of [CryptCloudViewer](https://github.com/lithium0003/ccViewer).
+This build uses a separate identity (`io.github.pin0o.ccViewerPoC`) and does not
+replace the original app. See [BUILD.md](BUILD.md) for unsigned AltStore builds
+and the PoC-specific iCloud, OAuth, and signing setup.
 
 ## description
 This app is iOS cloud viewer with keeping encrypted. App supports device folders and remote storages: Google Drive, Dropbox, OneDrive, pCloud, Filen.io, S3, WebDAV, SFTP and Samba. Available encryption: rclone, CarotDAV, Cryptomator and gocryptfs. This app can play media files with keeping encrypted. In addition, this app can play non-native media files (ex. mpeg2) with software decoder. You can edit your cloud storages: upload, make folder, rename, move, delete items.
 
 In version 1.4.0, Chromecast support added. Please keep the app foreground and not lock the device while casting to Chromecast.
 
-In version 2.0.0, rewrite for iOS26 and broken features fix. Support OS is swiched to >=iOS26. Background upload, download and cast play is available in setting menu.
+The upstream version 2.0.0 introduced the iOS 26 rewrite. This PoC targets iOS 17.6
+or later; features that require iOS 26 remain available on supported devices.
+Background upload, download and cast play is available in setting menu.
 
 ## video
 [![YouTube](https://img.youtube.com/vi/BelQr_-3t7c/maxresdefault.jpg)](https://www.youtube.com/watch?v=BelQr_-3t7c)

@@ -22,9 +22,9 @@ class Store {
     var updateListenerTask: Task<Void, Error>? = nil
 
     private static let products = [
-        "info.lithium03.ccViewer.coffee",
-        "info.lithium03.ccViewer.orange",
-        "info.lithium03.ccViewer.dinner",
+        "io.github.pin0o.ccViewerPoC.coffee",
+        "io.github.pin0o.ccViewerPoC.orange",
+        "io.github.pin0o.ccViewerPoC.dinner",
     ]
 
     @MainActor

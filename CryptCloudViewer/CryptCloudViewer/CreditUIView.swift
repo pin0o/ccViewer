@@ -1804,13 +1804,19 @@ struct CreditUIView: View {
 
     var body: some View {
         Section {
+            Text(verbatim: "Experimental build")
+        } header: {
+            Text(verbatim: "CryptCloudViewer PoC")
+        }
+
+        Section {
             Text(verbatim: "MIT License")
             Link(
               "https://github.com/lithium0003/ccViewer",
               destination: URL(string: "https://github.com/lithium0003/ccViewer")!
             )
         } header: {
-            Text(verbatim: "CryptCloudViewer")
+            Text(verbatim: "Original CryptCloudViewer")
         } footer: {
             Text("This application is OpenSource project.")
         }

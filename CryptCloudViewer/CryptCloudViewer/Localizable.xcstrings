@@ -1600,12 +1600,12 @@
         }
       }
     },
-    "Welcome to CryptCloudViewer!" : {
+    "Welcome to CryptCloudViewer PoC!" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "CryptCloudViewerへようこそ!"
+            "value" : "CryptCloudViewer PoCへようこそ!"
           }
         }
       }

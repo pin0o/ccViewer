@@ -122,6 +122,7 @@ struct SettingUIView: View {
     func getKeyChain(key: String) -> String? {
         
         let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                  kSecAttrService as String: PoCAppIdentity.keychainService,
                                   kSecAttrAccount as String: key,
                                   kSecReturnData as String: kCFBooleanTrue as Any]
         
@@ -150,6 +151,7 @@ struct SettingUIView: View {
         }
         
         let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                  kSecAttrService as String: PoCAppIdentity.keychainService,
                                   kSecAttrAccount as String: key,
                                   kSecValueData as String: _data]
         

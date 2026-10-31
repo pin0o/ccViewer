@@ -13,7 +13,7 @@ struct TutorialUIView: View {
     var body: some View {
         TabView {
             VStack {
-                Text("Welcome to CryptCloudViewer!")
+                Text("Welcome to CryptCloudViewer PoC!")
                     .font(.largeTitle)
                     .padding()
                 Button {

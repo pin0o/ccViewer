@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>CryptCloudViewer PoC</string>
+	<key>CFBundleName</key>
+	<string>CryptCloudViewerPoC</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).export.*</string>
@@ -11,9 +15,21 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).google</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>$(GIDURLScheme)</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>io.github.pin0o.ccviewer-poc.dropbox</string>
+				<string>io.github.pin0o.ccviewer-poc.onedrive</string>
+				<string>io.github.pin0o.ccviewer-poc.pcloud</string>
 			</array>
 		</dict>
 	</array>

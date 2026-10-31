@@ -9,7 +9,7 @@
       }
     ]
   },
-  "identifier" : "30AC58E7",
+  "identifier" : "507E7AB9",
   "nonRenewingSubscriptions" : [
 
   ],
@@ -17,7 +17,7 @@
     {
       "displayPrice" : "12.99",
       "familyShareable" : false,
-      "internalID" : "1459006923",
+      "internalID" : "71cf07b0-8d30-4602-97b3-90514b07e0ee",
       "localizations" : [
         {
           "description" : "treat developer to a dinner",
@@ -30,14 +30,14 @@
           "locale" : "ja"
         }
       ],
-      "productID" : "info.lithium03.ccViewer.dinner",
+      "productID" : "io.github.pin0o.ccViewerPoC.dinner",
       "referenceName" : "ごはんをおごる",
       "type" : "Consumable"
     },
     {
       "displayPrice" : "4.99",
       "familyShareable" : false,
-      "internalID" : "1459006871",
+      "internalID" : "a3b99b7f-2099-45b8-b8c1-134012518a17",
       "localizations" : [
         {
           "description" : "作者に生搾りオレンジジュースをおごる",
@@ -50,14 +50,14 @@
           "locale" : "en_US"
         }
       ],
-      "productID" : "info.lithium03.ccViewer.orange",
+      "productID" : "io.github.pin0o.ccViewerPoC.orange",
       "referenceName" : "オレンジジュースをおごる",
       "type" : "Consumable"
     },
     {
       "displayPrice" : "0.99",
       "familyShareable" : false,
-      "internalID" : "1459006877",
+      "internalID" : "849be40e-7864-44a4-bd45-1cee4f3748bb",
       "localizations" : [
         {
           "description" : "give a coffee to developer",
@@ -70,20 +70,20 @@
           "locale" : "ja"
         }
       ],
-      "productID" : "info.lithium03.ccViewer.coffee",
+      "productID" : "io.github.pin0o.ccViewerPoC.coffee",
       "referenceName" : "コーヒーをおごる",
       "type" : "Consumable"
     }
   ],
   "settings" : {
-    "_applicationInternalID" : "1458528598",
+    "_applicationInternalID" : "",
     "_askToBuyEnabled" : false,
     "_billingGracePeriodEnabled" : false,
     "_billingIssuesEnabled" : false,
-    "_developerTeamID" : "7A9X38B4YU",
+    "_developerTeamID" : "",
     "_disableDialogs" : false,
     "_failTransactionsEnabled" : false,
-    "_lastSynchronizedDate" : 784791884.462062,
+    "_lastSynchronizedDate" : 0,
     "_locale" : "en_US",
     "_renewalBillingIssuesEnabled" : false,
     "_storefront" : "USA",

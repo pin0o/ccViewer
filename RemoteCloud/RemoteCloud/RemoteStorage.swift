@@ -542,6 +542,7 @@ public class CloudFactory {
     func getKeyChain(key: String) async -> Data? {
         return await Task.detached {
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                      kSecAttrService as String: PoCAppIdentity.keychainService,
                                       kSecAttrAccount as String: key,
                                       kSecReturnData as String: kCFBooleanTrue as Any]
             
@@ -568,6 +569,7 @@ public class CloudFactory {
             }
             
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                      kSecAttrService as String: PoCAppIdentity.keychainService,
                                       kSecReturnAttributes as String: kCFBooleanTrue as Any,
                                       kSecReturnData as String: kCFBooleanTrue as Any,
                                       kSecMatchLimit as String: kSecMatchLimitAll]
@@ -604,9 +606,12 @@ public class CloudFactory {
     func delAllKeyChain() async -> Bool {
         return await Task.detached {
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                      kSecAttrService as String: PoCAppIdentity.keychainService,
                                       kSecAttrSynchronizable as String: kCFBooleanTrue as Any]
-            let dic2: [String: Any] = [kSecClass as String: kSecClassGenericPassword]
+            let dic2: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                       kSecAttrService as String: PoCAppIdentity.keychainService]
             let dic3: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                       kSecAttrService as String: PoCAppIdentity.keychainService,
                                        kSecAttrSynchronizable as String: kCFBooleanTrue as Any,
                                        kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
             
@@ -632,6 +637,7 @@ public class CloudFactory {
     func delKeyChain(key: String) async -> Bool {
         return await Task.detached {
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                      kSecAttrService as String: PoCAppIdentity.keychainService,
                                       kSecAttrAccount as String: key]
             
             if SecItemDelete(dic as CFDictionary) == errSecSuccess {
@@ -648,6 +654,7 @@ public class CloudFactory {
         return await Task.detached {
             let dic: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: PoCAppIdentity.keychainService,
                 kSecAttrAccount as String: key,
                 kSecValueData as String: data
             ]
@@ -949,6 +956,7 @@ public class RemoteStorageBase: NSObject, RemoteStorage {
         await RemoteStorageBase.semaphore_key.wait()
         let result = await Task.detached {
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                      kSecAttrService as String: PoCAppIdentity.keychainService,
                                       kSecAttrAccount as String: key,
                                       kSecReturnData as String: kCFBooleanTrue as Any]
             
@@ -971,6 +979,7 @@ public class RemoteStorageBase: NSObject, RemoteStorage {
         await RemoteStorageBase.semaphore_key.wait()
         let result = await Task.detached {
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                      kSecAttrService as String: PoCAppIdentity.keychainService,
                                       kSecAttrAccount as String: key]
             if SecItemDelete(dic as CFDictionary) == errSecSuccess {
                 return true
@@ -992,6 +1001,7 @@ public class RemoteStorageBase: NSObject, RemoteStorage {
         await RemoteStorageBase.semaphore_key.wait()
         let result = await Task.detached {
             let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                      kSecAttrService as String: PoCAppIdentity.keychainService,
                                       kSecAttrAccount as String: key,
                                       kSecValueData as String: _data]
 

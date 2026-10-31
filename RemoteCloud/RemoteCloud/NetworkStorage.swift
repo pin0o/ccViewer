@@ -182,7 +182,7 @@ public class NetworkStorage: RemoteStorageBase {
         URL(string: "https://example.com/oauth/authorize")!
     }
     var authCallback: ASWebAuthenticationSession.Callback {
-        ASWebAuthenticationSession.Callback.customScheme("com.example.app")
+        ASWebAuthenticationSession.Callback.customScheme("io.github.pin0o.ccviewer-poc")
     }
     var additionalHeaderFields: [String: String] {
         return [:]

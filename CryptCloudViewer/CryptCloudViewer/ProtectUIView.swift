@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import RemoteCloud
 import LocalAuthentication
 
 struct ProtectUIView: View {
@@ -15,6 +16,7 @@ struct ProtectUIView: View {
     func getKeyChain(key: String) -> String? {
         
         let dic: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                  kSecAttrService as String: PoCAppIdentity.keychainService,
                                   kSecAttrAccount as String: key,
                                   kSecReturnData as String: kCFBooleanTrue as Any]
         

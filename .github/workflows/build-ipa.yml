@@ -1,4 +1,4 @@
-name: Build unsigned IPA
+name: Build unsigned PoC IPA
 
 on:
   push:
@@ -71,8 +71,8 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: CryptCloudViewer-unsigned
-          path: build/ipa/CryptCloudViewer-unsigned.ipa
+          name: CryptCloudViewerPoC-unsigned
+          path: build/ipa/CryptCloudViewerPoC-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
 

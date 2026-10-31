@@ -77,8 +77,9 @@ struct CryptCloudViewerApp: App {
             UserDefaults.standard.set(true, forKey: "firstFFplayer")
             UserDefaults.standard.set(true, forKey: "savePlaypos")
             UserDefaults.standard.set(true, forKey: "resumePlaypos")
-            UserDefaults.standard.set(true, forKey: "cloudPlaypos")
-            UserDefaults.standard.set(true, forKey: "cloudPlaylist")
+            // Enable only after registering this PoC's own iCloud container.
+            UserDefaults.standard.set(false, forKey: "cloudPlaypos")
+            UserDefaults.standard.set(false, forKey: "cloudPlaylist")
             UserDefaults.standard.set(true, forKey: "PDF_continuous")
 
             UserDefaults.standard.set(true, forKey: "ffplay loudnorm")
