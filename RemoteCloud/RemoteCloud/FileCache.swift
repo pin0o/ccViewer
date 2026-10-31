@@ -482,7 +482,7 @@ public class FileCache {
     }
 
     public func deleteAllCache() async {
-        NotificationCenter.default.post(name: .thumbnailInvalidated, object: nil)
+        // Network-cache housekeeping must not evict independently configured thumbnails.
         await cache.deleteAllCache()
     }
 

@@ -179,6 +179,7 @@ struct SettingUIView: View {
     static func doDelete() async {
         try? await CloudFactory.shared.data.clearAllData()
         await CloudFactory.shared.cache.deleteAllCache()
+        await ThumbnailService.shared.purgePersistentCache()
     }
     
     static func doAllDelete() async {
@@ -188,6 +189,7 @@ struct SettingUIView: View {
         FileBrowserSettings.shared.reset()
         try? await CloudFactory.shared.data.clearAllData()
         await CloudFactory.shared.cache.deleteAllCache()
+        await ThumbnailService.shared.purgePersistentCache()
         await CloudFactory.shared.initializeDatabase()
     }
 
@@ -544,6 +546,7 @@ struct SettingUIView: View {
                 Button(role: .destructive) {
                     Task {
                         await CloudFactory.shared.cache.deleteAllCache()
+                        await ThumbnailService.shared.purgePersistentCache()
                         networkCacheSize = await CloudFactory.shared.cache.getCacheSize()
                     }
                 } label: {

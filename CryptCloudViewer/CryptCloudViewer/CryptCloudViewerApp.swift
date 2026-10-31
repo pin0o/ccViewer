@@ -100,6 +100,7 @@ struct CryptCloudViewerApp: App {
         ThumbnailSettings.shared.reset()
         FileBrowserSettings.shared.reset()
         await CloudFactory.shared.cache.deleteAllCache()
+        await ThumbnailService.shared.purgePersistentCache()
         await CloudFactory.shared.initializeDatabase()
 
         let buildNum = Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "") ?? 0
@@ -138,6 +139,7 @@ struct CryptCloudViewerApp: App {
         WindowGroup {
             ContentView()
                 .onAppear {
+                    ThumbnailService.shared.setLocked(UserStateObject.shared.locked && UserStateObject.shared.isPassworded)
                     configureGoogleSignIn()
 
                     let criteria = GCKDiscoveryCriteria(applicationID: SecretItems.kReceiverAppID)

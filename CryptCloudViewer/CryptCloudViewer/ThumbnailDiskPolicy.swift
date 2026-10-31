@@ -33,12 +33,18 @@ final class ThumbnailDiskPolicy {
     func key(item: RemoteDataDTO, namespace: String, group: ThumbnailGroup, pixels: Int) -> ThumbnailDiskKey? {
         let storage = storageID(item.storage ?? "")
         if storages[storage] == nil { storages[storage] = UUID().uuidString; save() }
-        let identity = ["schema": "1", "namespace": namespace, "id": item.id ?? "", "size": String(item.size),
-            "modified": item.mdate.map { String($0.timeIntervalSince1970.bitPattern) } ?? "unknown",
-            "created": item.cdate.map { String($0.timeIntervalSince1970.bitPattern) } ?? "unknown",
-            "hash": item.hashstr ?? "", "extension": item.ext ?? "", "subid": item.subid ?? "",
-            "substart": String(item.substart), "subend": String(item.subend),
-            "baseStorage": item.baseStorage ?? "", "baseId": item.baseId ?? ""]
+        var identity: [String: String] = ["schema": "1", "namespace": namespace]
+        identity["id"] = item.id ?? ""
+        identity["size"] = String(item.size)
+        identity["modified"] = item.mdate.map { String($0.timeIntervalSince1970.bitPattern) } ?? "unknown"
+        identity["created"] = item.cdate.map { String($0.timeIntervalSince1970.bitPattern) } ?? "unknown"
+        identity["hash"] = item.hashstr ?? ""
+        identity["extension"] = item.ext ?? ""
+        identity["subid"] = item.subid ?? ""
+        identity["substart"] = String(item.substart)
+        identity["subend"] = String(item.subend)
+        identity["baseStorage"] = item.baseStorage ?? ""
+        identity["baseId"] = item.baseId ?? ""
         guard let data = try? JSONSerialization.data(withJSONObject: identity, options: .sortedKeys),
               let groupVersion = groups[group.rawValue], let storageVersion = storages[storage] else { return nil }
         return ThumbnailDiskKey(root: root, group: group.rawValue, groupVersion: groupVersion,
