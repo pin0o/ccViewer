@@ -991,6 +991,26 @@
         }
       }
     },
+    "Google Drive unavailable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Driveを利用できません"
+          }
+        }
+      }
+    },
+    "This build does not include valid Google sign-in settings. Please use a build configured for Google sign-in." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドには有効なGoogleログイン設定がありません。Googleログインを設定したビルドをご利用ください。"
+          }
+        }
+      }
+    },
     "OK" : {
       "shouldTranslate" : false
     },

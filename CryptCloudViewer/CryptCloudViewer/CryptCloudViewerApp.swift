@@ -111,30 +111,30 @@ struct CryptCloudViewerApp: App {
         let buildNum = Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "") ?? 0
         UserDefaults.standard.set(buildNum, forKey: "previousBuildNo")
     }
+
+    private func configureGoogleSignIn() {
+        guard GoogleDriveStorage.isSignInConfigured else { return }
+#if DEBUG
+        if !SecretItems.GIDSigninDebugKey.isEmpty {
+            GIDSignIn.sharedInstance.configureDebugProvider(withAPIKey: SecretItems.GIDSigninDebugKey) { error in
+                if let error { print("configure: \(error)") }
+            }
+        }
+#else
+        GIDSignIn.sharedInstance.configure { error in
+            if let error { print("configure: \(error)") }
+        }
+#endif
+        GIDSignIn.sharedInstance.restorePreviousSignIn { _, error in
+            if let error { print("restorePreviousSignIn: \(error)") }
+        }
+    }
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .onAppear {
-#if DEBUG
-                    GIDSignIn.sharedInstance.configureDebugProvider(withAPIKey: SecretItems.GIDSigninDebugKey) { error in
-                        if let error {
-                            print("configure: \(error)")
-                        }
-                    }
-#else
-                    GIDSignIn.sharedInstance.configure() {
-                        error in
-                        if let error {
-                            print("configure: \(error)")
-                        }
-                    }
-#endif
-                    GIDSignIn.sharedInstance.restorePreviousSignIn{ user,error in
-                        if let error {
-                            print("restorePreviousSignIn: \(error)")
-                        }
-                    }
+                    configureGoogleSignIn()
 
                     let criteria = GCKDiscoveryCriteria(applicationID: SecretItems.kReceiverAppID)
                     let options = GCKCastOptions(discoveryCriteria: criteria)
@@ -152,6 +152,7 @@ struct CryptCloudViewerApp: App {
                     initParams()
                 }
                 .onOpenURL{ url in
+                    guard GoogleDriveStorage.isSignInConfigured else { return }
                     if GIDSignIn.sharedInstance.handle(url) {
                         return
                     }

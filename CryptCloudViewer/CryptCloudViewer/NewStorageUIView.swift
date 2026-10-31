@@ -27,6 +27,8 @@ struct NewStorageUIView: View {
     }
     @State var pass = false
     @State var start = false
+    @State private var isAuthenticating = false
+    @State private var googleSignInUnavailable = false
 
     var body: some View {
         VStack {
@@ -49,13 +51,20 @@ struct NewStorageUIView: View {
                                     Text(verbatim: CloudFactory.getServiceName(service: remote))
                                 }
                                 .onTapGesture {
+                                    guard !isAuthenticating else { return }
                                     guard !name.isEmpty else {
                                         withAnimation {
                                             warning.toggle()
                                         }
                                         return
                                     }
+                                    if remote == .GoogleDrive, !GoogleDriveStorage.isSignInConfigured {
+                                        googleSignInUnavailable = true
+                                        return
+                                    }
+                                    isAuthenticating = true
                                     Task {
+                                        defer { isAuthenticating = false }
                                         guard let newitem = await CloudFactory.shared.newStorage(service: remote, tagname: name) else {
                                             return
                                         }
@@ -101,7 +110,13 @@ struct NewStorageUIView: View {
                     }
                 }
             }
+            .disabled(isAuthenticating)
             Spacer()
+        }
+        .alert("Google Drive unavailable", isPresented: $googleSignInUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This build does not include valid Google sign-in settings. Please use a build configured for Google sign-in.")
         }
         .onDisappear {
             guard start else { return }

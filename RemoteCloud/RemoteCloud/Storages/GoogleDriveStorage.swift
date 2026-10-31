@@ -13,31 +13,17 @@ import CoreData
 import SwiftUI
 import CryptoKit
 import GoogleSignIn
-
-struct GoogleLoginView: View {
-    let authContinuation: CheckedContinuation<Bool, Never>
-    let scopes: [String]
-
-    var body: some View {
-        Color.clear
-            .task {
-                try? await Task.sleep(for: .seconds(1))
-                Task { @MainActor in
-                    do {
-                        guard let rootViewController = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.windows.first?.rootViewController else { return }
-                        try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController, hint: nil, additionalScopes: scopes)
-                        authContinuation.resume(returning: true)
-                    } catch {
-                        // Respond to any authorization errors.
-                        print(error)
-                        authContinuation.resume(returning: false)
-                    }
-                }
-            }
-    }
-}
+import UIKit
 
 public class GoogleDriveStorage: NetworkStorage, URLSessionDataDelegate {
+
+    @MainActor
+    public static var isSignInConfigured: Bool {
+        guard let settings = try? GoogleSignInSettings(infoDictionary: Bundle.main.infoDictionary ?? [:]) else {
+            return false
+        }
+        return GIDSignIn.sharedInstance.configuration?.clientID == settings.clientID
+    }
 
     public override func getStorageType() -> CloudStorages {
         return .GoogleDrive
@@ -57,73 +43,76 @@ public class GoogleDriveStorage: NetworkStorage, URLSessionDataDelegate {
     }
     
     override func isAuthorized() async -> Bool {
-        GIDSignIn.sharedInstance.currentUser != nil
+        await MainActor.run {
+            Self.isSignInConfigured && GIDSignIn.sharedInstance.currentUser != nil
+        }
     }
 
     public override func auth(callback: @escaping (any View, CheckedContinuation<Bool, Never>) -> Void,  webAuthenticationSession: WebAuthenticationSession, selectItem: @escaping () async -> (String, String)?) async -> Bool {
+        guard await Self.isSignInConfigured else { return false }
         if await checkToken() {
             return true
         }
-        if await isAuthorized() {
-            return true
+        return await signIn()
+    }
+
+    @MainActor
+    private func signIn() async -> Bool {
+        guard Self.isSignInConfigured, !Task.isCancelled,
+              let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+              var presenter = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+            return false
         }
-        let authRet = await withCheckedContinuation { authContinuation in
-            Task {
-                let presentRet = await withCheckedContinuation { continuation in
-                    callback(GoogleLoginView(authContinuation: authContinuation, scopes: scope), continuation)
-                }
-                guard presentRet else {
-                    authContinuation.resume(returning: false)
-                    return
-                }
-            }
+        while let presented = presenter.presentedViewController, !presented.isBeingDismissed {
+            presenter = presented
         }
-        return authRet
+        do {
+            try await GIDSignIn.sharedInstance.signIn(withPresenting: presenter, hint: nil, additionalScopes: scope)
+            return GIDSignIn.sharedInstance.currentUser != nil
+        } catch {
+            print("Google sign-in failed: \(error)")
+            return false
+        }
     }
 
     public override func logout() async {
-        GIDSignIn.sharedInstance.signOut()
+        await MainActor.run {
+            if Self.isSignInConfigured {
+                GIDSignIn.sharedInstance.signOut()
+            }
+        }
         await super.logout()
     }
 
     override func accessToken() async -> String {
-        guard let currentUser = GIDSignIn.sharedInstance.currentUser else {
-            return ""
+        await MainActor.run {
+            guard Self.isSignInConfigured else { return "" }
+            return GIDSignIn.sharedInstance.currentUser?.accessToken.tokenString ?? ""
         }
-        return currentUser.accessToken.tokenString
     }
 
     override func getRefreshToken() async -> String {
-        guard let currentUser = GIDSignIn.sharedInstance.currentUser else {
-            return ""
+        await MainActor.run {
+            guard Self.isSignInConfigured else { return "" }
+            return GIDSignIn.sharedInstance.currentUser?.refreshToken.tokenString ?? ""
         }
-        return currentUser.refreshToken.tokenString
     }
 
     override func checkToken() async -> Bool {
-        guard let currentUser = GIDSignIn.sharedInstance.currentUser else {
-            let task = Task { @MainActor in
-                guard let rootViewController = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.windows.first?.rootViewController else { return false }
-                do {
-                    try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController, hint: nil, additionalScopes: scope)
-                }
-                catch {
-                    print(error)
-                    return false
-                }
-                guard GIDSignIn.sharedInstance.currentUser != nil else {
-                    return false
-                }
-                return true
-            }
-            return await task.value
-        }
+        await refreshTokenIfNeeded()
+    }
+
+    @MainActor
+    private func refreshTokenIfNeeded() async -> Bool {
+        // Background token refresh must never present interactive login UI.
+        guard Self.isSignInConfigured, !Task.isCancelled,
+              let currentUser = GIDSignIn.sharedInstance.currentUser else { return false }
         do {
             try await currentUser.refreshTokensIfNeeded()
             return true
-        }
-        catch {
-            print(error)
+        } catch {
+            print("Google token refresh failed: \(error)")
             return false
         }
     }

@@ -33,6 +33,12 @@ jobs:
               stream.write(f'DEVELOPER_DIR={app}/Contents/Developer\n')
           PY
 
+      - name: Test Google sign-in configuration validation
+        run: |
+          mkdir -p build
+          xcrun swiftc RemoteCloud/RemoteCloud/GoogleSignInSettings.swift tests/GoogleSignInSettingsTests.swift -o build/google-signin-settings-tests
+          build/google-signin-settings-tests
+
       - uses: actions/cache/restore@v4
         id: dependencies
         with:

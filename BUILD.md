@@ -41,6 +41,12 @@ UserDefaults、Core Data、キャッシュ、Files に公開する Documents は
 
 ビルドスクリプトは IPA 作成前に、アプリと自作フレームワークの Bundle ID・アプリ表示名が PoC 用であることを検証します。
 
+### Google Drive を追加するとき
+
+Google OAuth の Client ID が空欄、または Client ID に対応する reversed client ID が URL スキームに登録されていないビルドでは、Google Drive の選択時に設定不足の案内を表示します。プロバイダーを作成する前に検査し、SDK の Objective-C 例外による終了を防ぎます。起動時の Google 認証復元と、バックグラウンドのトークン更新にも同じ検査を適用します。トークン更新だけでログイン画面を開くことはありません。
+
+Google Drive を利用するには、上記の PoC 専用 OAuth クライアントを取得して設定した IPA が必要です。設定の空欄や仮の URL スキームだけでは Google にはログインできません。CI は `tests/GoogleSignInSettingsTests.swift` で、未入力・未展開変数・不整合の URL スキーム・正常設定などの回帰検証を実行します。
+
 GitHub Actions は FFmpeg のリビジョンを固定し、iOS 17 向けにライブラリとヘッダをビルドします。同梱アーカイブは iOS 26 向けのため、iOS 17.6 との互換性を保つ目的で再利用しません。依存ライブラリはアプリのコンパイル前にキャッシュし、アプリ側の修正で再コンパイルしなくて済むようにしています。標準の SDK 相対パスで libarchive を解決し、Xcode 26 のマイナーバージョンごとの SDK ディレクトリ名に依存しません。
 
 ## 初回実装の検証
