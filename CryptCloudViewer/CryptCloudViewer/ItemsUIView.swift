@@ -596,13 +596,11 @@ struct ItemsUIView: View {
         }
         .navigationTitle(title)
         .toolbar {
-            ToolbarItem { FileBrowserDisplayMenu() }
-            ToolbarItem() {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 NavigationLink(value: HomePath.edit(storage: storage, fileid: fileid)) {
                     Image(systemName: "square.and.pencil")
                 }
-            }
-            ToolbarItem() {
+                FileBrowserDisplayMenu()
                 Menu {
                     sortButton(key: "Name A → Z", idx: 0)
                     sortButton(key: "Name Z → A", idx: 1)
@@ -615,8 +613,6 @@ struct ItemsUIView: View {
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
                 }
-            }
-            ToolbarItem() {
                 NavigationLink(value: HomePath.setting) {
                     Image(systemName: "gear")
                 }

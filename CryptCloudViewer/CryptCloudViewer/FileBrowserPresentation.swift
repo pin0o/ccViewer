@@ -63,6 +63,7 @@ struct FileBrowserDisplayMenu: View {
             }
         } label: {
             Label("View options", systemImage: settings.layout == .list ? "list.bullet" : "square.grid.2x2")
+                .labelStyle(.iconOnly)
         }
     }
 }

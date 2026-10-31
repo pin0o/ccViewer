@@ -637,15 +637,13 @@ struct PlaylistUIView: View {
         }
         .navigationTitle("")
         .toolbar {
-            ToolbarItem { FileBrowserDisplayMenu() }
-            ToolbarItem() {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     isNewName.toggle()
                 } label: {
                     Image(systemName: "folder.badge.plus")
                 }
-            }
-            ToolbarItem() {
+                FileBrowserDisplayMenu()
                 NavigationLink(value: HomePath.setting) {
                     Image(systemName: "gear")
                 }

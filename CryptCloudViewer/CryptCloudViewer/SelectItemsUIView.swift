@@ -219,7 +219,7 @@ struct SelectItemsUIView: View {
                     await reload()
                 }
                 .toolbar {
-                    ToolbarItem { FileBrowserDisplayMenu() }
+                    ToolbarItem(placement: .topBarTrailing) { FileBrowserDisplayMenu() }
                     ToolbarItem(placement: .cancellationAction) {
                         Button(role: .cancel) {
                             while let last = env.path.last, case .select(_, _) = last {

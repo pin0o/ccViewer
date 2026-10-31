@@ -925,8 +925,8 @@ struct EditItemsUIView: View {
         }
         .navigationTitle(title)
         .toolbar {
-            ToolbarItem { FileBrowserDisplayMenu() }
-            ToolbarItem() {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                FileBrowserDisplayMenu()
                 Menu {
                     sortButton(key: "Name A → Z", idx: 0)
                     sortButton(key: "Name Z → A", idx: 1)
@@ -939,13 +939,11 @@ struct EditItemsUIView: View {
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
                 }
-            }
-            ToolbarItem() {
                 NavigationLink(value: HomePath.setting) {
                     Image(systemName: "gear")
                 }
             }
-            
+
             ToolbarItem(placement: .cancellationAction) {
                 Button {
                     Task {
